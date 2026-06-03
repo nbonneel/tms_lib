@@ -1,4 +1,4 @@
-#include "tmslib.h"
+#include "tms_lib.h"
 
 char invGalois[MAX_GF + 1][MAX_GF] = { // we set inv(0)=0
     {}, {}, // bases 0 and 1
