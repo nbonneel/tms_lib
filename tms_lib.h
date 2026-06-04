@@ -3,7 +3,8 @@
 #include <iostream>
 #include <ostream>
 #include <vector>
-
+#include <cassert>
+#include <algorithm>
 
 #define MAX_GF 16
 
@@ -299,6 +300,20 @@ struct Matrix : MatrixBase<Matrix<F>, F> {
         }
     }
 
+    Matrix(int m_, int n_, std::initializer_list<int> init)
+        : values(new T[m_ * n_]), m(m_), n(n_) {
+        assert(static_cast<int>(init.size()) <= m * n);
+
+        int k = 0;
+        for (int x : init) {
+            values[k++] = gf_from_int<F::p, F::r>(x);
+        }
+
+        for (; k < m * n; ++k) {
+            values[k] = T{ 0 };
+        }
+    }
+
     ~Matrix() {
         delete[] values;
     }
@@ -399,7 +414,7 @@ void pascal_pow_field(GF<p, r>* mat, int n, GF<p, r> power) {
     } 
 }
 
-template<class F, int N, int Power>
+template<class F, int N, int Power=1>
 struct PascalPowIntMatrix {
     typedef typename F::T T;
 
@@ -417,7 +432,7 @@ struct PascalPowIntMatrix {
 };
 
 
-template<class F, int N, int Power>
+template<class F, int N, int Power=1>
 struct PascalTranslateFieldMatrix {
     typedef typename F::T T;
 
@@ -434,6 +449,8 @@ struct PascalTranslateFieldMatrix {
     }
 };
 
+
+
 template<class F>
 void fill_pascal_int(MatrixView<F> &out, int power_int) {
     assert(out.m == out.n);
@@ -446,8 +463,7 @@ void fill_pascal_field(MatrixView<F> &out, typename F::T power_field) {
     pascal_pow_field<F::p, F::r>(out.values, out.n, power_field);
 }
 
-#include <cassert>
-#include <algorithm>
+
 
 template<class F>
 void tensor_product_full(const MatrixView<F>& A,
@@ -543,9 +559,9 @@ void tensor_product_truncated(const MatrixView<F>& A,
 }
 
 template<class F>
-void tensor_product(const MatrixView<F>& A,
-    const MatrixView<F>& B,
-    MatrixView<F>& result,
+void tensor_product(const MatrixView<F> A,
+    const MatrixView<F> B,
+    MatrixView<F> result,
     int truncate_row = -1,
     int truncate_col = -1) {
     if (truncate_row < 0 && truncate_col < 0) {
@@ -1214,6 +1230,117 @@ std::vector<int> t_values(const MatrixView<F>* all_matrices, int n_matrices,
 
     return result;
 }
+
+template<class F>
+void fill_sobol(MatrixView<F> out,
+    MatrixView<F> poly,
+    MatrixView<F> V) {
+    typedef typename F::T T;
+
+    assert(out.m == out.n);
+    assert(V.m == V.n);
+
+    const int m = out.n;
+    const int e = V.n;
+
+    assert(e > 0);
+    assert(m >= e);
+    assert(poly.m * poly.n >= e);
+
+    const int os = out.n;
+    const int vs = V.n;
+
+    for (int i = 0; i < e; ++i) {
+        for (int j = 0; j < e; ++j) {
+            out[i * os + j] = gf_reduce<F::p, F::r>(V[i * vs + j]);
+        }
+    }
+
+    for (int ncur = e; ncur < m; ++ncur) {
+        const int new_col = ncur;
+        const int new_row = ncur;
+
+        for (int j = 0; j <= new_col; ++j) {
+            out[new_row * os + j] = T{ 0 };
+        }
+
+        for (int i = 0; i <= new_row; ++i) {
+            out[i * os + new_col] = T{ 0 };
+        }
+
+        for (int k = 0; k < e; ++k) {
+            const int src_col = ncur - e + k;
+            const T coeff = poly[k];
+
+            for (int i = 0; i <= ncur; ++i) {
+                out[i * os + new_col] =
+                    gf_reduce<F::p, F::r>(
+                        out[i * os + new_col]
+                        - coeff * out[i * os + src_col]
+                    );
+            }
+        }
+
+        const int feedback_col = ncur - e;
+
+        for (int i = e; i <= ncur; ++i) {
+            out[i * os + new_col] =
+                gf_reduce<F::p, F::r>(
+                    out[i * os + new_col]
+                    + out[(i - e) * os + feedback_col]
+                );
+        }
+    }
+}
+
+
+
+template<class F>
+struct SobolMatrix : public Matrix<F> {
+    typedef Matrix<F> Base;
+    typedef typename F::T T;
+
+    SobolMatrix(int n,
+        MatrixView<F> poly,
+        MatrixView<F> init)
+        : Base(n, n) {
+        fill_sobol<F>(this->view(), poly, init);
+    }
+
+};
+
+template<class F>
+struct SobolMatrixView : public MatrixView<F> {
+    typedef MatrixView<F> Base;
+    typedef typename F::T T;
+
+    SobolMatrixView(MatrixView<F> out,
+        MatrixView<F> poly,
+        MatrixView<F> init)
+        : Base(out) {
+        fill_sobol<F>(
+            static_cast<MatrixView<F>&>(*this),
+            poly,
+            init
+        );
+    }
+
+
+    SobolMatrixView(T* buffer,
+        int n,
+        MatrixView<F> poly,
+        MatrixView<F> init)
+        : Base(buffer, n, n) {
+        fill_sobol<F>(
+            static_cast<MatrixView<F>&>(*this),
+            poly,
+            init
+        );
+    }
+
+
+};
+
 
 typedef Field<2, 1> GF2;
 typedef Field<3, 1> GF3;
