@@ -40,7 +40,6 @@ int main() {
 	Matrix<F> Id(9, 9);
 	Id.set_id();
 
-	P3F[2 * 9 + 4] = gf_reduce < F::p, F::r>(P3F[2 * 9 + 4] + T{ 1 });
 	std::vector<MatrixView<F> > tocombine(3);
 	tocombine[1] = P;
 	tocombine[2] = P3F.view();
@@ -50,17 +49,14 @@ int main() {
 	Matrix<F> result(9, 9);
 	combine_matrices(&tocombine[0], choice, 3, 9, result.view());
 
-
 	std::cout << "mat = " <<std::endl << result << std::endl;
 
 	bool ret = is_t0_progressive(&tocombine[0], 3);
 
-	//std::vector<int> all_t = t_values(&tocombine[0], 3);
-
 	std::cout << "ret = " << (ret?std::string("progressive"): std::string("not progressive"))<< std::endl;
 	std::cout << "rank = " << P.rank() << std::endl;
 
-	Matrix<F> Plr = P;
+	Matrix<F> Plr = P; // destroy 2 ranks by 1 linear combination of rows, and 1 linear combination of columns
 	for (int i = 0; i < 9; i++) {
 		Plr[4 * 9 + i] = Plr[3 * 9 + i] + Plr[5 * 9 + i];
 	}
@@ -70,6 +66,7 @@ int main() {
 
 	std::cout << "rank7 = " << Plr.rank() << std::endl;
 
+	// 3 matrices from Victor. t={0, 1, 1, 1, 1, 2, 3, 2}
 	int debugs[3][8][8] = { {{1, 1, 2, 2, 3, 1, 3, 2}, {0, 2, 3, 4, 1, 3, 2, 2}, {0, 0, 2, 0, 0, 4, 1,
  4}, {0, 0, 0, 1, 3, 4, 1, 1}, {0, 0, 0, 0, 3, 2, 4, 0}, {0, 0, 0, 0, 0, 3,
  0, 1}, {0, 0, 0, 0, 0, 0, 1, 1}, {0, 0, 0, 0, 0, 0, 0, 2}}, {{4, 3, 2, 4, 1,
@@ -80,14 +77,10 @@ int main() {
  0, 0, 0, 3, 4, 3, 1}, {0, 0, 0, 0, 0, 2, 0, 1}, {0, 0, 0, 0, 0, 0, 2, 0},
  {0, 0, 0, 0, 0, 0, 0, 1}} };
 
-	MatrixView<F> m1(&debugs[0][0][0], 8, 8);
-	MatrixView<F> m2(&debugs[1][0][0], 8, 8);
-	MatrixView<F> m3(&debugs[2][0][0], 8, 8);
-
 	std::vector<MatrixView<F> > tocombine2(3);
-	tocombine2[0] = m1;
-	tocombine2[1] = m2;
-	tocombine2[2] = m3;
+	tocombine2[0] = MatrixView<F>(&debugs[0][0][0], 8, 8);
+	tocombine2[1] = MatrixView<F>(&debugs[1][0][0], 8, 8);
+	tocombine2[2] = MatrixView<F>(&debugs[2][0][0], 8, 8);
 
 	std::vector<int> all_t = t_values(&tocombine2[0], 3);
 
