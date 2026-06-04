@@ -55,7 +55,6 @@ void test_t_values() {
 	sequence[2] = S3.view();
 	sequence[3] = S4.view();
 
-
 	auto time_point1 = std::chrono::high_resolution_clock::now();
 	std::vector<int> all_t = t_values_naive(&sequence[0], 4);
 	auto time_point2 = std::chrono::high_resolution_clock::now();
