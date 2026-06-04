@@ -1138,20 +1138,20 @@ int MatrixBase<Derived, F>::rank() const {
 }
 
 template<class F>
-std::vector<int> t_values(const MatrixView<F>* all_matrices, int n_matrices)  {
+std::vector<int> t_values_naive(const MatrixView<F>* all_matrices, int n_matrices)  {
 
     typedef typename F::T T;
     T* mem = new T[all_matrices[0].rows() * all_matrices[0].cols()*2];
     MatrixView<F> combination(mem, all_matrices[0].rows(), all_matrices[0].cols());
     MatrixView<F> tmpPivoted(mem+ all_matrices[0].rows() * all_matrices[0].cols(), all_matrices[0].rows(), all_matrices[0].cols());
-    std::vector<int> t = t_values(all_matrices, n_matrices, combination, tmpPivoted);
+    std::vector<int> t = t_values_naive(all_matrices, n_matrices, combination, tmpPivoted);
     delete[] mem;
     return t;
 }
 
 // returns a vector of t values (one value for each m)
 template<class F>
-std::vector<int> t_values(const MatrixView<F>* all_matrices, int n_matrices,
+std::vector<int> t_values_naive(const MatrixView<F>* all_matrices, int n_matrices,
     MatrixView<F> combination, // n x n 
     MatrixView<F> tmpPivoted // n x n
 )  {
@@ -1230,6 +1230,424 @@ std::vector<int> t_values(const MatrixView<F>* all_matrices, int n_matrices,
 
     return result;
 }
+
+
+// from here :
+// https://www.sciencedirect.com/science/article/pii/S0377042719306740
+// An algorithm to compute the t-value of a digital net and of its projections
+// Pure ChatGPT implementation
+
+template<class Callback>
+void gray_compositions_rec(
+    int parts,
+    int total,
+    bool rev,
+    int pos,
+    std::vector<int>& comp,
+    Callback& cb
+) {
+    if (parts == 1) {
+        comp[pos] = total;
+        cb(comp);
+        return;
+    }
+
+    if (!rev) {
+        for (int v = 0; v <= total; ++v) {
+            comp[pos] = v;
+            bool subrev = (v & 1) ? !rev : rev;
+            gray_compositions_rec(parts - 1, total - v, subrev, pos + 1, comp, cb);
+        }
+    }
+    else {
+        for (int v = total; v >= 0; --v) {
+            comp[pos] = v;
+            bool subrev = (v & 1) ? !rev : rev;
+            gray_compositions_rec(parts - 1, total - v, subrev, pos + 1, comp, cb);
+        }
+    }
+}
+
+template<class Callback>
+void gray_compositions(int parts, int total, Callback cb) {
+    std::vector<int> comp(parts, 0);
+    gray_compositions_rec(parts, total, false, 0, comp, cb);
+}
+
+
+template<class F>
+struct RAREF_LT_State {
+    typedef typename F::T T;
+
+    int q;
+    int k;
+
+    Matrix<F> C;   // q x k
+    Matrix<F> L;   // q x q
+    Matrix<F> Tm;  // q x k, Tm = L*C
+
+    std::vector<int> pivot_col;
+    int rank_value;
+
+    RAREF_LT_State(int q_, int k_)
+        : q(q_),
+        k(k_),
+        C(q_, k_),
+        L(q_, q_),
+        Tm(q_, k_),
+        pivot_col(q_, -1),
+        rank_value(0) {
+    }
+
+    static bool is_zero(T x) {
+        return x == T{ 0 };
+    }
+
+    void set_C_row_no_update(int row, const MatrixView<F>& M, int source_row) {
+        for (int c = 0; c < k; ++c) {
+            C[row * C.n + c] =
+                gf_reduce<F::p, F::r>(M[source_row * M.n + c]);
+        }
+    }
+
+    void set_identity_L() {
+        for (int i = 0; i < q; ++i) {
+            for (int j = 0; j < q; ++j) {
+                L[i * L.n + j] = (i == j) ? T{ 1 } : T{ 0 };
+            }
+        }
+    }
+
+    void copy_C_to_T() {
+        for (int i = 0; i < q; ++i) {
+            for (int j = 0; j < k; ++j) {
+                Tm[i * Tm.n + j] = C[i * C.n + j];
+            }
+        }
+    }
+
+    void swap_rows(Matrix<F>& M, int a, int b, int cols) {
+        if (a == b) return;
+
+        for (int c = 0; c < cols; ++c) {
+            std::swap(M[a * M.n + c], M[b * M.n + c]);
+        }
+    }
+
+    void row_scale(Matrix<F>& M, int row, T scale, int cols) {
+        for (int c = 0; c < cols; ++c) {
+            M[row * M.n + c] =
+                gf_reduce<F::p, F::r>(M[row * M.n + c] * scale);
+        }
+    }
+
+    void row_sub_scaled(Matrix<F>& M, int dst, int src, T scale, int cols) {
+        if (is_zero(scale)) return;
+
+        for (int c = 0; c < cols; ++c) {
+            M[dst * M.n + c] =
+                gf_reduce<F::p, F::r>(
+                    M[dst * M.n + c] - scale * M[src * M.n + c]
+                );
+        }
+    }
+
+    void pivot_single_row(int row) {
+        // Step 1 of Algorithm 1 for this row:
+        // zero entries in already-pivot columns.
+        for (int r = 0; r < q; ++r) {
+            if (r == row) continue;
+
+            const int pc = pivot_col[r];
+            if (pc < 0) continue;
+
+            const T coeff = Tm[row * Tm.n + pc];
+
+            if (!is_zero(coeff)) {
+                row_sub_scaled(Tm, row, r, coeff, k);
+                row_sub_scaled(L, row, r, coeff, q);
+            }
+        }
+
+        // Locate first nonzero coefficient.
+        int pc = -1;
+        for (int c = 0; c < k; ++c) {
+            if (!is_zero(Tm[row * Tm.n + c])) {
+                pc = c;
+                break;
+            }
+        }
+
+        if (pc < 0) {
+            pivot_col[row] = -1;
+            return;
+        }
+
+        // Normalize pivot to 1.
+        const T inv_pivot = F::div(T{ 1 }, Tm[row * Tm.n + pc]);
+
+        row_scale(Tm, row, inv_pivot, k);
+        row_scale(L, row, inv_pivot, q);
+
+        // Zero pivot column everywhere else.
+        for (int r = 0; r < q; ++r) {
+            if (r == row) continue;
+
+            const T coeff = Tm[r * Tm.n + pc];
+
+            if (!is_zero(coeff)) {
+                row_sub_scaled(Tm, r, row, coeff, k);
+                row_sub_scaled(L, r, row, coeff, q);
+            }
+        }
+
+        pivot_col[row] = pc;
+    }
+
+    void compute_from_C() {
+        set_identity_L();
+        copy_C_to_T();
+
+        std::fill(pivot_col.begin(), pivot_col.end(), -1);
+
+        for (int row = 0; row < q; ++row) {
+            pivot_single_row(row);
+        }
+
+        recompute_rank_value();
+    }
+
+    void recompute_rank_value() {
+        rank_value = 0;
+
+        for (int i = 0; i < q; ++i) {
+            if (pivot_col[i] >= 0) {
+                ++rank_value;
+            }
+        }
+    }
+
+    int rank() const {
+        return rank_value;
+    }
+
+    bool full_rank() const {
+        return rank_value == q;
+    }
+
+    int rightmost_pivot_plus_one() const {
+        int r = 0;
+
+        for (int i = 0; i < q; ++i) {
+            if (pivot_col[i] >= 0 && pivot_col[i] + 1 > r) {
+                r = pivot_col[i] + 1;
+            }
+        }
+
+        return r;
+    }
+
+    void replace_row(int row, const MatrixView<F>& M, int source_row) {
+        // Replace row `row` of C by row `source_row` of M,
+        // and update L,Tm using Algorithm 2.
+
+        // Algorithm 2, step 1:
+        // find j such that L[j,row] != 0.
+        int jrow = -1;
+        for (int j = 0; j < q; ++j) {
+            if (!is_zero(L[j * L.n + row])) {
+                jrow = j;
+                break;
+            }
+        }
+
+        assert(jrow >= 0);
+
+        if (jrow != row) {
+            swap_rows(L, row, jrow, q);
+            swap_rows(Tm, row, jrow, k);
+            std::swap(pivot_col[row], pivot_col[jrow]);
+        }
+
+        const T a = L[row * L.n + row];
+        assert(!is_zero(a));
+
+        // Algorithm 2, step 2:
+        // zero the rest of column `row` in L, applying same ops to Tm.
+        for (int r = 0; r < q; ++r) {
+            if (r == row) continue;
+
+            const T coeff = L[r * L.n + row];
+
+            if (!is_zero(coeff)) {
+                const T lambda = F::div(coeff, a);
+
+                row_sub_scaled(L, r, row, lambda, q);
+                row_sub_scaled(Tm, r, row, lambda, k);
+            }
+        }
+
+        // Algorithm 2, step 3:
+        // isolate L[row,row] = a and replace C[row] and Tm[row].
+        for (int c = 0; c < q; ++c) {
+            L[row * L.n + c] = T{ 0 };
+        }
+        L[row * L.n + row] = a;
+
+        for (int c = 0; c < k; ++c) {
+            C[row * C.n + c] =
+                gf_reduce<F::p, F::r>(M[source_row * M.n + c]);
+
+            Tm[row * Tm.n + c] =
+                gf_reduce<F::p, F::r>(a * C[row * C.n + c]);
+        }
+
+        // Algorithm 2, step 4:
+        // pivot on this row.
+        pivot_col[row] = -1;
+        pivot_single_row(row);
+        recompute_rank_value();
+    }
+};
+
+
+template<class F>
+std::vector<int> t_values(
+    const MatrixView<F>* all_matrices,
+    int n_matrices
+) {
+    assert(n_matrices > 0);
+
+    const int s = n_matrices;
+    const int k = all_matrices[0].cols();
+
+    for (int d = 0; d < s; ++d) {
+        assert(all_matrices[d].rows() >= k);
+        assert(all_matrices[d].cols() >= k);
+    }
+
+    std::vector<int> lq(k + 1, k + 1);
+
+    for (int q = 1; q <= k; ++q) {
+        RAREF_LT_State<F> state(q, k);
+
+        std::vector<int> prev_comp(s, 0);
+        std::vector<int> slot_dim(q, -1);
+        std::vector<int> slot_row(q, -1);
+
+        bool first = true;
+        bool all_full_rank = true;
+        int worst_needed_cols = 0;
+
+        gray_compositions(s, q, [&](const std::vector<int>& comp) {
+            if (!all_full_rank) {
+                return;
+            }
+
+            if (first) {
+                int out_row = 0;
+
+                for (int d = 0; d < s; ++d) {
+                    for (int r = 0; r < comp[d]; ++r) {
+                        state.set_C_row_no_update(out_row, all_matrices[d], r);
+
+                        slot_dim[out_row] = d;
+                        slot_row[out_row] = r;
+
+                        ++out_row;
+                    }
+                }
+
+                assert(out_row == q);
+
+                state.compute_from_C();
+
+                first = false;
+            }
+            else {
+                int from_dim = -1;
+                int to_dim = -1;
+
+                for (int d = 0; d < s; ++d) {
+                    const int diff = comp[d] - prev_comp[d];
+
+                    if (diff == -1) {
+                        from_dim = d;
+                    }
+                    else if (diff == +1) {
+                        to_dim = d;
+                    }
+                    else {
+                        assert(diff == 0);
+                    }
+                }
+
+                assert(from_dim >= 0);
+                assert(to_dim >= 0);
+
+                const int removed_row = prev_comp[from_dim] - 1;
+                const int added_row = comp[to_dim] - 1;
+
+                int slot = -1;
+
+                for (int r = 0; r < q; ++r) {
+                    if (slot_dim[r] == from_dim && slot_row[r] == removed_row) {
+                        slot = r;
+                        break;
+                    }
+                }
+
+                assert(slot >= 0);
+
+                state.replace_row(slot, all_matrices[to_dim], added_row);
+
+                slot_dim[slot] = to_dim;
+                slot_row[slot] = added_row;
+            }
+
+            if (!state.full_rank()) {
+                all_full_rank = false;
+                return;
+            }
+
+            const int needed_cols = state.rightmost_pivot_plus_one();
+
+            if (needed_cols > worst_needed_cols) {
+                worst_needed_cols = needed_cols;
+            }
+
+            prev_comp = comp;
+            });
+
+        if (!all_full_rank) {
+            for (int qq = q; qq <= k; ++qq) {
+                lq[qq] = k + 1;
+            }
+            break;
+        }
+
+        lq[q] = worst_needed_cols;
+    }
+
+    std::vector<int> result;
+    result.reserve(k);
+
+    for (int m = 1; m <= k; ++m) {
+        int rho = 0;
+
+        for (int q = 1; q <= m; ++q) {
+            if (lq[q] <= m) {
+                rho = q;
+            }
+        }
+
+        result.push_back(m - rho);
+    }
+
+    return result;
+}
+
+/// end of ChatGPT implem of [Marion et al. 2020]
 
 template<class F>
 void fill_sobol(MatrixView<F> out,

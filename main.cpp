@@ -1,6 +1,6 @@
 #include "tms_lib.h"
 #include <vector>
-
+#include <chrono>
 
 void test_arithmetic() {
 	typedef GF5 F;
@@ -19,7 +19,7 @@ void test_t_values() {
 	typedef F::T T;
 
 	// 3 matrices from Victor. t={0, 1, 1, 1, 1, 2, 3, 2}
-	int matrices[3][8][8] = { 
+	/*int matrices[3][8][8] = { 
 		{{1, 1, 2, 2, 3, 1, 3, 2}, {0, 2, 3, 4, 1, 3, 2, 2}, {0, 0, 2, 0, 0, 4, 1, 4}, {0, 0, 0, 1, 3, 4, 1, 1}, 
 		 {0, 0, 0, 0, 3, 2, 4, 0}, {0, 0, 0, 0, 0, 3, 0, 1}, {0, 0, 0, 0, 0, 0, 1, 1}, {0, 0, 0, 0, 0, 0, 0, 2}},
 		{{4, 3, 2, 4, 1, 2, 0, 4}, {0, 4, 2, 1, 2, 1, 3, 1}, {0, 0, 1, 2, 4, 3, 3, 0}, {0, 0, 0, 4, 1, 1, 2, 4}, 
@@ -30,12 +30,49 @@ void test_t_values() {
 	std::vector<MatrixView<F> > sequence(3);
 	sequence[0] = MatrixView<F>(&matrices[0][0][0], 8, 8);
 	sequence[1] = MatrixView<F>(&matrices[1][0][0], 8, 8);
-	sequence[2] = MatrixView<F>(&matrices[2][0][0], 8, 8);
+	sequence[2] = MatrixView<F>(&matrices[2][0][0], 8, 8);*/
 
-	std::vector<int> all_t = t_values(&sequence[0], 3);
 
+	Matrix<F> poly1(1, 5, { 4, 2, 4, 0, 2 });  
+	Matrix<F> init1(5, 5, { 1, 1, 0, 2, 1,   0, 1, 1, 3, 2,   0, 0, 1, 1, 1,   0, 0, 0, 1, 0,  0, 0, 0, 0, 1 });
+	SobolMatrix<F> S1(50, poly1.view(), init1.view());
+
+	Matrix<F> poly2(1, 5, { 1, 2, 3, 3, 4 }); 
+	Matrix<F> init2(5, 5, { 1, 1, 3, 2, 1,   0, 1, 2, 3, 2,   0, 0, 1, 2, 1,   0, 0, 0, 1, 4,  0, 0, 0, 0, 1 });
+	SobolMatrix<F> S2(50, poly2.view(), init2.view());
+
+	Matrix<F> poly3(1, 3, { 3, 4, 0 }); 
+	Matrix<F> init3(3, 3, { 1, 2, 2, 0, 4, 1, 0, 0, 1 });
+	SobolMatrix<F> S3(50, poly3.view(), init3.view());
+
+	Matrix<F> poly4(1, 4, { 3, 0, 3, 4 });
+	Matrix<F> init4(4, 4, { 1, 2, 2, 3,   0, 4, 1, 2,   0, 0, 1, 1,  0, 0, 0, 1 });
+	SobolMatrix<F> S4(50, poly4.view(), init4.view());
+
+	std::vector<MatrixView<F> > sequence(4);
+	sequence[0] = S1.view();
+	sequence[1] = S2.view();
+	sequence[2] = S3.view();
+	sequence[3] = S4.view();
+
+
+	auto time_point1 = std::chrono::high_resolution_clock::now();
+	std::vector<int> all_t = t_values_naive(&sequence[0], 4);
+	auto time_point2 = std::chrono::high_resolution_clock::now();
+	
+
+	std::vector<int> all_t_v2 = t_values(&sequence[0], 4);
+	auto time_point3 = std::chrono::high_resolution_clock::now();
+
+	std::cout << std::chrono::duration_cast<std::chrono::milliseconds>((time_point2 - time_point1)).count() << " ms, t (naive) : " << std::endl;
 	for (int i = 0; i < all_t.size(); i++)
 		std::cout << all_t[i] << " ";
+	std::cout << std::endl;
+
+
+	std::cout << std::chrono::duration_cast<std::chrono::milliseconds>((time_point3 - time_point2)).count() << " ms, t ([Marion et al. 2020]): " << std::endl;
+	for (int i = 0; i < all_t_v2.size(); i++)
+		std::cout << all_t_v2[i] << " ";
 	std::cout << std::endl;
 
 }
