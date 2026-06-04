@@ -223,10 +223,10 @@ struct MatrixBase {
         }
     }
 
-    typename T operator[](int i) const {
+    T operator[](int i) const {
         return derived().values[i];
     }
-    typename T& operator[](int i) {
+    T& operator[](int i) {
         return derived().values[i];
     }
 
@@ -271,10 +271,10 @@ struct MatrixView : MatrixBase<MatrixView<F>, F> {
     MatrixView(T* values_, int m_, int n_)
         : values(values_), m(m_), n(n_) {
     }
-    typename T operator[](int i) const {
+    T operator[](int i) const {
         return values[i];
     }
-    typename T& operator[](int i) {
+    T& operator[](int i) {
         return values[i];
     }
 };
@@ -336,10 +336,10 @@ struct Matrix : MatrixBase<Matrix<F>, F> {
         return MatrixView<F>{ values, m, n };
     }
 
-    typename F::T operator[](int i) const {
+    T operator[](int i) const {
         return values[i];
     }
-    typename F::T& operator[](int i) {
+    T& operator[](int i) {
         return values[i];
     }
 };
@@ -1029,56 +1029,83 @@ bool is_t0_progressive(const MatrixView<F>* all_matrices, int n_matrices) {
 
 template<class Derived, class F>
 int MatrixBase<Derived, F>::rank(MatrixView<F> tmpPivoted) const {
+    typedef typename F::T T;
 
     const MatrixBase<Derived, F>& mat = *this;
-    int m = rows();
-    int n = cols();
+
+    const int m = rows();
+    const int n = cols();
 
     if (m == 0 || n == 0) {
         return 0;
     }
 
-    typedef typename F::T T;
+    assert(tmpPivoted.m >= m);
+    assert(tmpPivoted.n >= n);
 
-    for (int i = 0; i < m; i++) {
-        for (int j = 0; j < n; j++) {
-            tmpPivoted[i * m + j] = mat[i * m + j];  // first column unchanged
-        }
-    }
-    for (int j = 0; j < n - 1; j++) {
-
-        if (tmpPivoted[j * m + j] == T{ 0 }) {
-            int pivSwap = -1;
-            for (int jj = j + 1; jj < n; jj++) {
-                if (tmpPivoted[j * m + jj] != T{ 0 }) {
-                    pivSwap = jj;
-                    break;
-                }
-            }
-            if (pivSwap == -1) {
-                break;
-            }
-            else {
-                for (int i = 0; i < m; i++) {
-                    std::swap(tmpPivoted[i * m + j], tmpPivoted[i * m + pivSwap]);
-                }
-            }
-        }
-        for (int jj = j + 1; jj < n; jj++) {
-            T inverseCoeff = F::div(tmpPivoted[j * m + jj], tmpPivoted[j * m + j]);  ;
-            for (int i = 0; i < m; i++) {
-                tmpPivoted[i * m + jj] = gf_reduce<F::p, F::r>(tmpPivoted[i * m + jj] - inverseCoeff * tmpPivoted[i * m + j]);
-            }
+    for (int i = 0; i < m; ++i) {
+        for (int j = 0; j < n; ++j) {
+            tmpPivoted[i * tmpPivoted.n + j] =
+                gf_reduce<F::p, F::r>(mat[i * n + j]);
         }
     }
 
     int rank = 0;
-    for (int i = 0; i < std::min(m, n); i++) {
-        if (tmpPivoted[i * m + i] != T{ 0 })
-            rank++;
+
+    for (int col = 0; col < n && rank < m; ++col) {
+        int pivot = -1;
+
+        // find non nul pivot in current column
+        for (int row = rank; row < m; ++row) {
+            if (tmpPivoted[row * tmpPivoted.n + col] != T{ 0 }) {
+                pivot = row;
+                break;
+            }
+        }
+
+        if (pivot == -1) {
+            continue;
+        }
+
+        // pivot on rank row
+        if (pivot != rank) {
+            for (int j = col; j < n; ++j) {
+                std::swap(
+                    tmpPivoted[rank * tmpPivoted.n + j],
+                    tmpPivoted[pivot * tmpPivoted.n + j]
+                );
+            }
+        }
+
+        const T pivotValue = tmpPivoted[rank * tmpPivoted.n + col];
+
+        // pivot elimination
+        for (int row = rank + 1; row < m; ++row) {
+            const T x = tmpPivoted[row * tmpPivoted.n + col];
+
+            if (x == T{ 0 }) {
+                continue;
+            }
+
+            const T coeff = F::div(x, pivotValue);
+
+            // column col becomes 0
+            tmpPivoted[row * tmpPivoted.n + col] = T{ 0 };
+
+            for (int j = col + 1; j < n; ++j) {
+                tmpPivoted[row * tmpPivoted.n + j] =
+                    gf_reduce<F::p, F::r>(
+                        tmpPivoted[row * tmpPivoted.n + j]
+                        - coeff * tmpPivoted[rank * tmpPivoted.n + j]
+                    );
+            }
+        }
+
+        ++rank;
     }
+
     return rank;
-}	
+}
 
 
 template<class Derived, class F>
@@ -1094,6 +1121,99 @@ int MatrixBase<Derived, F>::rank() const {
     return r;
 }
 
+template<class F>
+std::vector<int> t_values(const MatrixView<F>* all_matrices, int n_matrices)  {
+
+    typedef typename F::T T;
+    T* mem = new T[all_matrices[0].rows() * all_matrices[0].cols()*2];
+    MatrixView<F> combination(mem, all_matrices[0].rows(), all_matrices[0].cols());
+    MatrixView<F> tmpPivoted(mem+ all_matrices[0].rows() * all_matrices[0].cols(), all_matrices[0].rows(), all_matrices[0].cols());
+    std::vector<int> t = t_values(all_matrices, n_matrices, combination, tmpPivoted);
+    delete[] mem;
+    return t;
+}
+
+// returns a vector of t values (one value for each m)
+template<class F>
+std::vector<int> t_values(const MatrixView<F>* all_matrices, int n_matrices,
+    MatrixView<F> combination, // n x n 
+    MatrixView<F> tmpPivoted // n x n
+)  {
+    // todo, implement https://arxiv.org/pdf/1910.02277
+
+    typedef typename F::T T;
+
+    int s = n_matrices;
+    std::vector<int>  rows_combinations(s, 0);
+    int position_value[200];
+    int position_value_size = 0;
+   
+    std::vector<int> result;
+    for (int m = 1; m <= all_matrices[0].cols(); m++) {
+
+        int t_trial;
+        for (t_trial = 0; t_trial < m; t_trial++) {
+
+            position_value_size = 0;
+
+            for (int i = 0; i <= m-t_trial; i++) {
+                position_value[position_value_size * 2] = 0;
+                position_value[position_value_size * 2 + 1] = i;
+                position_value_size++;
+            }
+            long long id = 0;
+            while (position_value_size != 0) {
+                id++;
+                int pos = position_value[(position_value_size - 1) * 2];
+                int value = position_value[(position_value_size - 1) * 2 + 1];
+                position_value_size--;
+                if (pos < s) {
+                    rows_combinations[pos] = value;
+                }
+                if (pos == s - 1) {
+
+                    int sumk = 0;
+                    for (int i = 0; i <= pos; i++) {
+                        sumk += rows_combinations[i];
+                    }
+
+                    if (sumk == m - t_trial) {
+                        combination.m = sumk ;
+                        combination.n = sumk + t_trial;
+                        combine_matrices(all_matrices, &rows_combinations[0], s, m, combination);
+
+
+                        int rk = combination.rank(tmpPivoted);
+                        if (rk < sumk) {
+                            goto next_t_trial;
+                        }
+                    }
+
+
+                }
+                else {
+                    pos++;
+
+                    int sumk = 0;
+                    for (int i = 0; i < pos; i++) {
+                        sumk += rows_combinations[i];
+                    }
+                    for (int k = 0; k <= m - sumk-t_trial; k++) {
+                        position_value[position_value_size * 2] = pos;
+                        position_value[position_value_size * 2 + 1] = k;
+                        position_value_size++;
+                    }
+                }
+            }
+            break;
+        next_t_trial:
+            continue;
+        }
+        result.push_back(t_trial);
+    }
+
+    return result;
+}
 
 typedef Field<2, 1> GF2;
 typedef Field<3, 1> GF3;

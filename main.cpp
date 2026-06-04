@@ -3,7 +3,7 @@
 
 int main() {
 
-	typedef GF8 F;
+	typedef GF5 F;
 	typedef F::T T;
 
 
@@ -16,7 +16,7 @@ int main() {
 	const MatrixView<F>& P = PascalPowIntMatrix<F /*GF4*/, 9 /*size*/, 1 /*power*/>::value();
 	Matrix<F> inv = P.get_inverse();
 	const MatrixView<F>& P3I = PascalPowIntMatrix<F, 9, 3 >::value();
-	const MatrixView<F>& P3F = PascalTranslateFieldMatrix<F, 9, 3 >::value();
+	Matrix<F> P3F = PascalTranslateFieldMatrix<F, 9, 3 >::value();
 
 	Matrix<F> triu(4, 4);
 	triu.set_zero();
@@ -40,9 +40,10 @@ int main() {
 	Matrix<F> Id(9, 9);
 	Id.set_id();
 
+	P3F[2 * 9 + 4] = gf_reduce < F::p, F::r>(P3F[2 * 9 + 4] + T{ 1 });
 	std::vector<MatrixView<F> > tocombine(3);
 	tocombine[1] = P;
-	tocombine[2] = P3F;
+	tocombine[2] = P3F.view();
 	tocombine[0] = Id.view();
 	int choice[3] = { 4,3,2 };
 
@@ -53,6 +54,8 @@ int main() {
 	std::cout << "mat = " <<std::endl << result << std::endl;
 
 	bool ret = is_t0_progressive(&tocombine[0], 3);
+
+	//std::vector<int> all_t = t_values(&tocombine[0], 3);
 
 	std::cout << "ret = " << (ret?std::string("progressive"): std::string("not progressive"))<< std::endl;
 	std::cout << "rank = " << P.rank() << std::endl;
@@ -66,5 +69,28 @@ int main() {
 	}
 
 	std::cout << "rank7 = " << Plr.rank() << std::endl;
+
+	int debugs[3][8][8] = { {{1, 1, 2, 2, 3, 1, 3, 2}, {0, 2, 3, 4, 1, 3, 2, 2}, {0, 0, 2, 0, 0, 4, 1,
+ 4}, {0, 0, 0, 1, 3, 4, 1, 1}, {0, 0, 0, 0, 3, 2, 4, 0}, {0, 0, 0, 0, 0, 3,
+ 0, 1}, {0, 0, 0, 0, 0, 0, 1, 1}, {0, 0, 0, 0, 0, 0, 0, 2}}, {{4, 3, 2, 4, 1,
+ 2, 0, 4}, {0, 4, 2, 1, 2, 1, 3, 1}, {0, 0, 1, 2, 4, 3, 3, 0}, {0, 0, 0, 4,
+ 1, 1, 2, 4}, {0, 0, 0, 0, 1, 0, 3, 0}, {0, 0, 0, 0, 0, 1, 4, 0}, {0, 0, 0,
+ 0, 0, 0, 4, 1}, {0, 0, 0, 0, 0, 0, 0, 4}}, {{4, 3, 4, 4, 4, 2, 1, 4}, {0, 3,
+ 3, 2, 1, 4, 2, 3}, {0, 0, 1, 4, 3, 2, 1, 2}, {0, 0, 0, 3, 3, 4, 1, 0}, {0,
+ 0, 0, 0, 3, 4, 3, 1}, {0, 0, 0, 0, 0, 2, 0, 1}, {0, 0, 0, 0, 0, 0, 2, 0},
+ {0, 0, 0, 0, 0, 0, 0, 1}} };
+
+	MatrixView<F> m1(&debugs[0][0][0], 8, 8);
+	MatrixView<F> m2(&debugs[1][0][0], 8, 8);
+	MatrixView<F> m3(&debugs[2][0][0], 8, 8);
+
+	std::vector<MatrixView<F> > tocombine2(3);
+	tocombine2[0] = m1;
+	tocombine2[1] = m2;
+	tocombine2[2] = m3;
+
+	std::vector<int> all_t = t_values(&tocombine2[0], 3);
+
+
 	return 0;
 };
