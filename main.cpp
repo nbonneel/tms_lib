@@ -1,6 +1,7 @@
 #include "tms_lib.h"
 #include <vector>
 #include <chrono>
+#include <list>
 
 void test_arithmetic() {
 	typedef GF5 F;
@@ -35,19 +36,19 @@ void test_t_values() {
 
 	Matrix<F> poly1(1, 5, { 4, 2, 4, 0, 2 });  
 	Matrix<F> init1(5, 5, { 1, 1, 0, 2, 1,   0, 1, 1, 3, 2,   0, 0, 1, 1, 1,   0, 0, 0, 1, 0,  0, 0, 0, 0, 1 });
-	SobolMatrix<F> S1(50, poly1.view(), init1.view());
+	SobolMatrix<F> S1(40, poly1.view(), init1.view()); // 40x40 Sobol matrices
 
 	Matrix<F> poly2(1, 5, { 1, 2, 3, 3, 4 }); 
 	Matrix<F> init2(5, 5, { 1, 1, 3, 2, 1,   0, 1, 2, 3, 2,   0, 0, 1, 2, 1,   0, 0, 0, 1, 4,  0, 0, 0, 0, 1 });
-	SobolMatrix<F> S2(50, poly2.view(), init2.view());
+	SobolMatrix<F> S2(40, poly2.view(), init2.view());
 
 	Matrix<F> poly3(1, 3, { 3, 4, 0 }); 
 	Matrix<F> init3(3, 3, { 1, 2, 2, 0, 4, 1, 0, 0, 1 });
-	SobolMatrix<F> S3(50, poly3.view(), init3.view());
+	SobolMatrix<F> S3(40, poly3.view(), init3.view());
 
 	Matrix<F> poly4(1, 4, { 3, 0, 3, 4 });
 	Matrix<F> init4(4, 4, { 1, 2, 2, 3,   0, 4, 1, 2,   0, 0, 1, 1,  0, 0, 0, 1 });
-	SobolMatrix<F> S4(50, poly4.view(), init4.view());
+	SobolMatrix<F> S4(40, poly4.view(), init4.view());
 
 	std::vector<MatrixView<F> > sequence(4);
 	sequence[0] = S1.view();
@@ -205,6 +206,62 @@ void test_rank() {
 }
 
 
+
+// lists all upper triangular matrices with exactly 1 in the diagonal, and at least 1 in the first row 
+void test_list_matrices() {
+	typedef GF3 F;
+	typedef F::T T;
+
+	const int mat_size = 3;
+	Matrix<F> min_matrix(mat_size, mat_size);
+	Matrix<F> max_matrix(mat_size, mat_size);
+	min_matrix.set_id();
+	for (int i = 0; i < mat_size; i++) {
+		min_matrix[i] = 1;
+	}
+
+	max_matrix.set_id();
+	for (int i = 0; i < mat_size; i++) {
+		for (int j = i+1; j < mat_size; j++) {
+			max_matrix[i * mat_size + j] = 2;
+		}
+	}
+
+	MatrixRange<F> range(min_matrix.view(), max_matrix.view());
+
+	long long num_matrix = 0;
+	for (auto it = range.begin(); it != range.end(); ++it) {
+		MatrixView<F> A = it->view();
+		std::cout << "Matrix " << num_matrix << std::endl;
+		std::cout << A << std::endl;
+		num_matrix++;
+	}
+}
+
+void test_draw_points() {
+
+	typedef GF5 F;
+	typedef F::T T;
+
+	// theses Sobol' polynomials work nicely in GF3, but produce funny points in GF4
+	Matrix<F> poly1(1, 3, { 1, 2, 0 });
+	Matrix<F> init1(3, 3, { 1, 1, 1, 0, 1, 1, 0, 0, 1 });
+	SobolMatrix<F> S1(10, poly1.view(), init1.view());
+
+	Matrix<F> poly2(1, 3, { 2, 2, 0 });
+	Matrix<F> init2(3, 3, { 1, 0, 1,  0, 1, 2, 0, 0, 1 });
+	SobolMatrix<F> S2(10, poly2.view(), init2.view());
+
+	std::vector<MatrixView<F> > m;
+	m.push_back(S1.view());
+	m.push_back(S2.view());
+	std::vector<int> vals = t_values(&m[0], 2, 5);
+	draw_2D_points(S1.view(), S2.view(), std::pow(std::pow((int)F::p, (int)F::r), 7), "points.svg");
+
+	S1.save_svg("matrix1.svg");
+}
+
+
 int main() {
 
 	test_arithmetic();
@@ -220,6 +277,10 @@ int main() {
 	test_t_values();
 
 	testSobolCharacteristicMatrix();
+
+	test_draw_points();
+
+	test_list_matrices();
 
 	return 0;
 };

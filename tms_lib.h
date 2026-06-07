@@ -172,6 +172,35 @@ gf_from_int(int x) {
 }
 
 template<class F>
+typename std::enable_if<F::r == 1, int>::type
+gf_to_raw_index(typename F::T x) {
+    return x;
+}
+
+template<class F>
+typename std::enable_if<F::r != 1, int>::type
+gf_to_raw_index(typename F::T x) {
+    return x.v;
+}
+
+// assumes digits has a sufficiently large allocated size ! typically std::floor(std::log(max_val) / std::log(Q))+1;
+template<class F>
+void decompose_integer_into_base(long long val, typename F::T* digits, int max_digits) {
+    typedef typename F::T T;
+    enum { Q = GFCardinality<F::p, F::r>::value };
+
+    assert(Q >= 2);
+    assert(val >= 0);
+
+    for (int i = 0; i < max_digits; ++i) {
+        digits[i] = T{ static_cast<int>(val % Q) };
+        val /= Q;
+    }
+}
+
+
+
+template<class F>
 struct MatrixView;
 
 template<class F>
@@ -258,7 +287,64 @@ struct MatrixBase {
 
     // same but slower : need to allocate memory instead of using preallocated tmp storage
     int rank() const;
+
+
+    std::vector<double> get_point_coordinates(long long nb_points) {
+
+        typedef typename F::T T;
+        enum { Q = GFCardinality<F::p, F::r>::value };
+
+        int n_digits = cols();
+        if (std::floor(log((double)nb_points) / log((double)Q)) + 1 > n_digits) {
+            std::cout << "request too many points : matrix is too small" << std::endl;
+        }
+
+        Matrix<F> digits(n_digits, 1);
+        Matrix<F> result_mul(n_digits, 1);
+
+        std::vector<double> result(nb_points);
+        for (long long i = 0; i < nb_points; i++) {
+            decompose_integer_into_base<F>(i, digits.data(), n_digits);
+            result_mul = (*this)* digits;
+            double val = 0;
+            for (int j = 0; j < n_digits; j++) {
+                val += gf_to_raw_index<F>(result_mul[j]) / (double)std::pow((double)Q, (double)j);
+            }
+            result[i] = val;
+        }
+
+        return result;
+
+    }
+
+    bool save_svg(const char* filename,
+        int cell_size = 24,
+        int margin = 6,
+        bool draw_grid = true) const;
 };
+
+template<class F>
+void draw_2D_points(MatrixView<F> M1, MatrixView<F> M2, int nb_points, const std::string &svg_filename) {
+
+    std::vector<double> x = M1.get_point_coordinates(nb_points);
+    std::vector<double> y = M2.get_point_coordinates(nb_points);
+
+
+    FILE* f = fopen(svg_filename.c_str(), "w+");
+	fprintf(f, "<svg xmlns = \"http://www.w3.org/2000/svg\" viewBox=\"0 0 1 1\" width = \"1024\" height = \"1024\">\n");
+
+	fprintf(f, "<g>\n");
+	for (int i = 0; i < nb_points; i++) {
+		fprintf(f, "<circle cx = \"%3.3f\" cy = \"%3.3f\" r = \"0.005\" />\n", x[i], 1.-y[i]);
+	}
+	fprintf(f, "</g>\n");
+
+	fprintf(f, "</svg>\n");
+    fclose(f);
+
+}
+
+
 
 template<class F>
 struct MatrixView : MatrixBase<MatrixView<F>, F> {
@@ -278,6 +364,7 @@ struct MatrixView : MatrixBase<MatrixView<F>, F> {
     T& operator[](int i) {
         return values[i];
     }
+
 };
 
 template<class F>
@@ -370,6 +457,129 @@ void printMat(const Matrix<T>& mat, int n) {
     }
 }
 
+
+template<class F>
+inline typename std::enable_if<F::r == 1, int>::type
+gf_svg_index(typename F::T x) {
+    enum { Q = GFCardinality<F::p, F::r>::value };
+    int v = x % Q;
+    if (v < 0) v += Q;
+    return v;
+}
+template<class F>
+inline typename std::enable_if<F::r != 1, int>::type
+gf_svg_index(typename F::T x) {
+    return x.v;
+}
+
+inline const char* gf_svg_color(int idx) {
+    static const char* colors[16] = {
+        "#FFFFFF", // 0
+        "#A8DADC", // 1  pastel cyan
+        "#FFCAD4", // 2  pastel pink
+        "#CDEAC0", // 3  pastel green
+        "#FFF1A8", // 4  pastel yellow
+        "#CDB4DB", // 5  pastel lavender
+        "#BDE0FE", // 6  pastel sky
+        "#FFD6A5", // 7  pastel peach
+        "#CAFFBF", // 8  pastel mint
+        "#F1C0E8", // 9  pastel mauve
+        "#A0C4FF", // 10 pastel blue
+        "#FDFFB6", // 11 pastel lemon
+        "#FFC6FF", // 12 pastel magenta
+        "#D0F4DE", // 13 pastel aqua
+        "#E4C1F9", // 14 pastel violet
+        "#B8F2E6"  // 15 pastel turquoise
+    };
+
+    if (idx < 0) idx = 0;
+    if (idx > 15) idx = 15;
+    return colors[idx];
+}
+
+template<class Derived, class F>
+bool MatrixBase<Derived, F>::save_svg(const char* filename,
+    int cell_size,
+    int margin,
+    bool draw_grid) const {
+    typedef typename F::T T;
+    enum { Q = GFCardinality<F::p, F::r>::value };
+
+    const int m = rows();
+    const int n = cols();
+
+    if (m < 0 || n < 0 || cell_size <= 0 || margin < 0) {
+        return false;
+    }
+
+    FILE* f = std::fopen(filename, "w");
+    if (!f) {
+        return false;
+    }
+
+    const int width = 2 * margin + n * cell_size + 1;
+    const int height = 2 * margin + m * cell_size + 1;
+
+    std::fprintf(f,
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" "
+        "version=\"1.1\" width=\"%d\" height=\"%d\" "
+        "viewBox=\"0 0 %d %d\">\n",
+        width, height, width, height);
+
+    std::fprintf(f,
+        "  <rect x=\"0\" y=\"0\" width=\"%d\" height=\"%d\" fill=\"#ffffff\"/>\n",
+        width, height);
+
+    for (int i = 0; i < m; ++i) {
+        for (int j = 0; j < n; ++j) {
+            const int x = margin + j * cell_size;
+            const int y = margin + i * cell_size;
+
+            int idx = gf_svg_index<F>((*this)[i * n + j]);
+            if (Q > 0) {
+                idx %= Q;
+                if (idx < 0) idx += Q;
+            }
+
+            const char* fill = gf_svg_color(idx);
+
+            std::fprintf(f,
+                "  <rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" "
+                "fill=\"%s\" stroke=\"none\"/>\n",
+                x, y, cell_size, cell_size, fill);
+        }
+    }
+
+    if (draw_grid) {
+        const char* grid_color = "#B8B8B8";
+
+        for (int i = 0; i <= m; ++i) {
+            const int y = margin + i * cell_size;
+            std::fprintf(f,
+                "  <line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" "
+                "stroke=\"%s\" stroke-width=\"1\"/>\n",
+                margin, y, margin + n * cell_size, y, grid_color);
+        }
+
+        for (int j = 0; j <= n; ++j) {
+            const int x = margin + j * cell_size;
+            std::fprintf(f,
+                "  <line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" "
+                "stroke=\"%s\" stroke-width=\"1\"/>\n",
+                x, margin, x, margin + m * cell_size, grid_color);
+        }
+    }
+
+    std::fprintf(f,
+        "  <rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" "
+        "fill=\"none\" stroke=\"#888888\" stroke-width=\"1.2\"/>\n",
+        margin, margin, n * cell_size, m * cell_size);
+
+    std::fprintf(f, "</svg>\n");
+    std::fclose(f);
+
+    return true;
+}
 
 
 template<int p, int r>
@@ -641,12 +851,19 @@ std::ostream& operator<<(std::ostream& out,
     const MatrixBase<Expr, F>& M_) {
     const Expr& M = M_.derived();
 
+    out << "{";
     for (int i = 0; i < M.m; ++i) {
-        for (int j = 0; j < M.n; ++j) {
-            out << M.values[i * M.n + j] << '\t';
+        out << "{";
+        for (int j = 0; j < M.n-1; ++j) {
+            out << M.values[i * M.n + j] << ",\t";
         }
-        out << '\n';
+        out << M.values[i * M.n + M.n-1];
+        if (i< M.m-1)
+            out << "},\n";
+        else
+            out << "}\n";
     }
+    out << "}";
 
     return out;
 }
@@ -1514,12 +1731,12 @@ struct RAREF_LT_State {
 template<class F>
 std::vector<int> t_values(
     const MatrixView<F>* all_matrices,
-    int n_matrices
+    int n_matrices, int max_m = -1
 ) {
     assert(n_matrices > 0);
 
     const int s = n_matrices;
-    const int k = all_matrices[0].cols();
+    const int k = (max_m==-1)?all_matrices[0].cols():max_m;
 
     for (int d = 0; d < s; ++d) {
         assert(all_matrices[d].rows() >= k);
@@ -1662,11 +1879,20 @@ void fill_sobol(MatrixView<F> out,
     const int e = V.n;
 
     assert(e > 0);
-    assert(m >= e);
     assert(poly.m * poly.n >= e);
 
     const int os = out.n;
     const int vs = V.n;
+
+    if (m <= e) {
+        for (int i = 0; i < m; ++i) {
+            for (int j = 0; j < m; ++j) {
+                out[i * os + j] = gf_reduce<F::p, F::r>(V[i * vs + j]);
+            }
+        }
+        return;
+    }
+
 
     for (int i = 0; i < e; ++i) {
         for (int j = 0; j < e; ++j) {
@@ -1757,6 +1983,85 @@ struct SobolMatrixView : public MatrixView<F> {
     }
 
 
+};
+
+
+
+template<class F>
+struct MatrixRange {
+    typedef typename F::T T;
+
+    Matrix<F> minM;
+    Matrix<F> maxM;
+    Matrix<F> curM;
+
+    MatrixRange(MatrixView<F> min_,
+        MatrixView<F> max_)
+        : minM(min_),
+        maxM(max_),
+        curM(min_) {
+        assert(min_.m == max_.m);
+        assert(min_.n == max_.n);
+    }
+
+    bool increment() {
+        const int N = curM.m * curM.n;
+
+        for (int idx = N - 1; idx >= 0; --idx) {
+            const int curv = gf_to_raw_index<F>(curM[idx]);
+            const int minv = gf_to_raw_index<F>(minM[idx]);
+            const int maxv = gf_to_raw_index<F>(maxM[idx]);
+
+            if (curv < maxv) {
+                curM[idx] = T{ curv + 1 };
+
+                for (int j = idx + 1; j < N; ++j) {
+                    const int resetv = gf_to_raw_index<F>(minM[j]);
+                    curM[j] = T{ resetv };
+                }
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    struct iterator {
+        MatrixRange<F>* range;
+        bool at_end;
+
+        iterator(MatrixRange<F>* range_, bool at_end_)
+            : range(range_), at_end(at_end_) {
+        }
+
+        Matrix<F>& operator*() {
+            return range->curM;
+        }
+
+        Matrix<F>* operator->() {
+            return &range->curM;
+        }
+
+        iterator& operator++() {
+            if (!range->increment()) {
+                at_end = true;
+            }
+            return *this;
+        }
+
+        bool operator!=(const iterator& other) const {
+            return at_end != other.at_end;
+        }
+    };
+
+    iterator begin() {
+        return iterator(this, false);
+    }
+
+    iterator end() {
+        return iterator(this, true);
+    }
 };
 
 
