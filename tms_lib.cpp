@@ -1,5 +1,9 @@
 #include "tms_lib.h"
 
+
+#include <cmath>
+#include <limits>
+
 char invGalois[MAX_GF + 1][MAX_GF] = { // we set inv(0)=0
     {}, {}, // bases 0 and 1
     {0, 1}, // base 2
@@ -303,3 +307,370 @@ char div_non_prime[MAX_GF + 1][MAX_GF][MAX_GF] = {
         {0,15,14,5,7,3,11,4,10,13,8,6,12,9,2,1}
     }
 };
+
+
+
+
+inline double clamp_discrepancy_square(double x) {
+    return x < 0.0 && x > -1e-12 ? 0.0 : x;
+}
+
+double generalized_l2_discrepancy_squared(const double* points,
+    int npts,
+    int dim) {
+    assert(points != 0);
+    assert(npts > 0);
+    assert(dim > 0);
+
+    const double invN = 1.0 / double(npts);
+
+    double term0 = 1.0;
+    for (int j = 0; j < dim; ++j) {
+        term0 *= 4.0 / 3.0;
+    }
+
+    double term1_sum = 0.0;
+
+    for (int i = 0; i < npts; ++i) {
+        double prod = 1.0;
+
+        for (int j = 0; j < dim; ++j) {
+            const double z = points[i * dim + j];
+            prod *= (3.0 - z * z) * 0.5;
+        }
+
+        term1_sum += prod;
+    }
+
+    double term2_sum = 0.0;
+
+    for (int i = 0; i < npts; ++i) {
+        const double* pi = points + i * dim;
+
+        for (int k = 0; k < npts; ++k) {
+            const double* pk = points + k * dim;
+
+            double prod = 1.0;
+
+            for (int j = 0; j < dim; ++j) {
+                const double m = pi[j] > pk[j] ? pi[j] : pk[j];
+                prod *= 2.0 - m;
+            }
+
+            term2_sum += prod;
+        }
+    }
+
+    const double d2 =
+        term0
+        - 2.0 * invN * term1_sum
+        + invN * invN * term2_sum;
+
+    return clamp_discrepancy_square(d2);
+}
+
+double generalized_l2_discrepancy(const double* points,
+    int npts,
+    int dim) {
+    const double d2 =
+        generalized_l2_discrepancy_squared(points, npts, dim);
+
+    return std::sqrt(d2);
+}
+
+inline double sanitize_unit_coord(double x) {
+    assert(std::isfinite(x));
+
+    if (x < 0.0) {
+        return 0.0;
+    }
+
+    if (x >= 1.0) {
+        return std::nextafter(1.0, 0.0);
+    }
+
+    return x;
+}
+
+double star_discrepancy_exact_bruteforce(const double* points,
+    int npts,
+    int dim) {
+    assert(points != 0);
+    assert(npts > 0);
+    assert(dim > 0);
+
+    const double invN = 1.0 / double(npts);
+
+    // Copie sanitizée des points.
+    std::vector<double> P(npts * dim);
+
+    for (int i = 0; i < npts; ++i) {
+        for (int j = 0; j < dim; ++j) {
+            P[i * dim + j] = sanitize_unit_coord(points[i * dim + j]);
+        }
+    }
+
+    std::vector<std::vector<double> > coords(dim);
+
+    for (int j = 0; j < dim; ++j) {
+        coords[j].reserve(npts + 1);
+
+        for (int i = 0; i < npts; ++i) {
+            coords[j].push_back(P[i * dim + j]);
+        }
+
+        coords[j].push_back(1.0);
+
+        std::sort(coords[j].begin(), coords[j].end());
+
+        coords[j].erase(
+            std::unique(coords[j].begin(), coords[j].end()),
+            coords[j].end()
+        );
+    }
+
+    std::vector<double> x(dim, 1.0);
+    double best = 0.0;
+
+    struct Recursor {
+        const double* P;
+        int npts;
+        int dim;
+        const std::vector<std::vector<double> >* coords;
+        std::vector<double>* x;
+        double invN;
+        double* best;
+
+        void run(int d) {
+            if (d == dim) {
+                evaluate();
+                return;
+            }
+
+            const std::vector<double>& c = (*coords)[d];
+
+            for (size_t i = 0; i < c.size(); ++i) {
+                (*x)[d] = c[i];
+                run(d + 1);
+            }
+        }
+
+        void evaluate() {
+            double volume = 1.0;
+
+            for (int j = 0; j < dim; ++j) {
+                volume *= (*x)[j];
+            }
+
+            int count_less = 0;
+            int count_leq = 0;
+
+            for (int i = 0; i < npts; ++i) {
+                const double* p = P + i * dim;
+
+                bool less = true;
+                bool leq = true;
+
+                for (int j = 0; j < dim; ++j) {
+                    if (!(p[j] < (*x)[j])) {
+                        less = false;
+                    }
+
+                    if (!(p[j] <= (*x)[j])) {
+                        leq = false;
+                    }
+
+                    if (!less && !leq) {
+                        break;
+                    }
+                }
+
+                if (less) ++count_less;
+                if (leq)  ++count_leq;
+            }
+
+            const double dplus = double(count_leq) * invN - volume;
+            const double dminus = volume - double(count_less) * invN;
+
+            if (dplus > *best) {
+                *best = dplus;
+            }
+
+            if (dminus > *best) {
+                *best = dminus;
+            }
+        }
+    };
+
+    Recursor R;
+    R.P = P.data();
+    R.npts = npts;
+    R.dim = dim;
+    R.coords = &coords;
+    R.x = &x;
+    R.invN = invN;
+    R.best = &best;
+
+    R.run(0);
+
+    return best;
+}
+
+double star_discrepancy_2d_exact(const double* points,
+    int npts) {
+    assert(points != 0);
+    assert(npts > 0);
+
+    const double invN = 1.0 / double(npts);
+
+    std::vector<double> P(2 * npts);
+
+    for (int i = 0; i < npts; ++i) {
+        P[2 * i + 0] = sanitize_unit_coord(points[2 * i + 0]);
+        P[2 * i + 1] = sanitize_unit_coord(points[2 * i + 1]);
+    }
+
+    std::vector<double> xs;
+    std::vector<double> ys;
+
+    xs.reserve(npts + 1);
+    ys.reserve(npts + 1);
+
+    for (int i = 0; i < npts; ++i) {
+        xs.push_back(P[2 * i + 0]);
+        ys.push_back(P[2 * i + 1]);
+    }
+
+    xs.push_back(1.0);
+    ys.push_back(1.0);
+
+    std::sort(xs.begin(), xs.end());
+    std::sort(ys.begin(), ys.end());
+
+    xs.erase(std::unique(xs.begin(), xs.end()), xs.end());
+    ys.erase(std::unique(ys.begin(), ys.end()), ys.end());
+
+    double best = 0.0;
+
+    for (size_t ix = 0; ix < xs.size(); ++ix) {
+        const double x = xs[ix];
+
+        for (size_t iy = 0; iy < ys.size(); ++iy) {
+            const double y = ys[iy];
+
+            const double volume = x * y;
+
+            int count_less = 0;
+            int count_leq = 0;
+
+            for (int i = 0; i < npts; ++i) {
+                const double px = P[2 * i + 0];
+                const double py = P[2 * i + 1];
+
+                if (px < x && py < y) {
+                    ++count_less;
+                }
+
+                if (px <= x && py <= y) {
+                    ++count_leq;
+                }
+            }
+
+            const double dplus = double(count_leq) * invN - volume;
+            const double dminus = volume - double(count_less) * invN;
+
+            if (dplus > best)  best = dplus;
+            if (dminus > best) best = dminus;
+        }
+    }
+
+    return best;
+}
+
+double star_discrepancy(const double* points,
+    int npts,
+    int dim) {
+    if (dim == 2) {
+        return star_discrepancy_2d_exact(points, npts);
+    }
+
+    return star_discrepancy_exact_bruteforce(points, npts, dim);
+}
+
+void print_point_range(const double* points, int npts, int dim) {
+    double mn = points[0];
+    double mx = points[0];
+
+    for (int i = 0; i < npts * dim; ++i) {
+        mn = std::min(mn, points[i]);
+        mx = std::max(mx, points[i]);
+    }
+
+    std::printf("point range = [%g, %g]\n", mn, mx);
+}
+
+
+#include <vector>
+#include <cmath>
+#include <cstdio>
+#include <cassert>
+#include <algorithm>
+#include <cstring>
+
+
+
+inline const char* discrepancy_metric_name(DiscrepancyPlotMetric metric) {
+    switch (metric) {
+    case DISCREPANCY_GENERALIZED_L2:
+        return "Generalized L2 discrepancy";
+    case DISCREPANCY_STAR:
+        return "Star discrepancy";
+    default:
+        return "Discrepancy";
+    }
+}
+
+inline double safe_log10(double x) {
+    const double eps = 1e-300;
+    return std::log10(x > eps ? x : eps);
+}
+
+inline void svg_text(FILE* f,
+    double x,
+    double y,
+    const char* text,
+    int font_size,
+    const char* anchor,
+    const char* fill) {
+    std::fprintf(f,
+        "<text x=\"%.3f\" y=\"%.3f\" "
+        "font-family=\"Arial, Helvetica, sans-serif\" "
+        "font-size=\"%d\" text-anchor=\"%s\" fill=\"%s\">%s</text>\n",
+        x, y, font_size, anchor, fill, text);
+}
+
+inline void svg_line(FILE* f,
+    double x1,
+    double y1,
+    double x2,
+    double y2,
+    const char* stroke,
+    double width,
+    const char* extra) {
+    std::fprintf(f,
+        "<line x1=\"%.3f\" y1=\"%.3f\" x2=\"%.3f\" y2=\"%.3f\" "
+        "stroke=\"%s\" stroke-width=\"%.3f\" %s/>\n",
+        x1, y1, x2, y2, stroke, width, extra);
+}
+
+inline void svg_circle(FILE* f,
+    double cx,
+    double cy,
+    double r,
+    const char* fill,
+    const char* stroke) {
+    std::fprintf(f,
+        "<circle cx=\"%.3f\" cy=\"%.3f\" r=\"%.3f\" "
+        "fill=\"%s\" stroke=\"%s\" stroke-width=\"1\"/>\n",
+        cx, cy, r, fill, stroke);
+}

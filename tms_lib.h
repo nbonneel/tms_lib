@@ -15,6 +15,10 @@ extern char div_non_prime[MAX_GF + 1][MAX_GF][MAX_GF];
 extern char neg_non_prime[MAX_GF + 1][MAX_GF];
 extern char invGalois[MAX_GF + 1][MAX_GF];
 
+double generalized_l2_discrepancy(const double* points, int npts, int dim);
+double star_discrepancy(const double* points, int npts, int dim);
+void print_point_range(const double* points, int npts, int dim);
+
 template<int p, int r>
 struct GFCardinality {
     enum { value = p * GFCardinality<p, r - 1>::value };
@@ -289,7 +293,7 @@ struct MatrixBase {
     int rank() const;
 
 
-    std::vector<double> get_point_coordinates(long long nb_points) {
+    void get_point_coordinates(long long nb_points, double* coords, int stride = 1) const {
 
         typedef typename F::T T;
         enum { Q = GFCardinality<F::p, F::r>::value };
@@ -302,19 +306,22 @@ struct MatrixBase {
         Matrix<F> digits(n_digits, 1);
         Matrix<F> result_mul(n_digits, 1);
 
-        std::vector<double> result(nb_points);
         for (long long i = 0; i < nb_points; i++) {
             decompose_integer_into_base<F>(i, digits.data(), n_digits);
             result_mul = (*this)* digits;
             double val = 0;
             for (int j = 0; j < n_digits; j++) {
-                val += gf_to_raw_index<F>(result_mul[j]) / (double)std::pow((double)Q, (double)j);
+                val += gf_to_raw_index<F>(result_mul[j]) / (double)std::pow((double)Q, (double)j+1);
             }
-            result[i] = val;
+            coords[i*stride] = val;
         }
+    }
 
+    std::vector<double> get_point_coordinates(long long nb_points) const {
+
+        std::vector<double> result(nb_points);
+        get_point_coordinates(nb_points, &result[0]);
         return result;
-
     }
 
     bool save_svg(const char* filename,
@@ -335,7 +342,7 @@ void draw_2D_points(MatrixView<F> M1, MatrixView<F> M2, int nb_points, const std
 
 	fprintf(f, "<g>\n");
 	for (int i = 0; i < nb_points; i++) {
-		fprintf(f, "<circle cx = \"%3.3f\" cy = \"%3.3f\" r = \"0.005\" />\n", x[i], 1.-y[i]);
+		fprintf(f, "<circle cx = \"%3.3f\" cy = \"%3.3f\" r = \"%3.3f\" />\n", x[i], 1.-y[i], sqrt(0.3/(nb_points*3.14)));
 	}
 	fprintf(f, "</g>\n");
 
@@ -1866,6 +1873,33 @@ std::vector<int> t_values(
 
 /// end of ChatGPT implem of [Marion et al. 2020]
 
+
+template<class F>
+void get_points(
+    const MatrixView<F>* all_matrices,
+    int n_matrices,
+    long long n_points,
+    double* points
+) {
+ 
+    for (int k = 0; k < n_matrices; k++) {
+        all_matrices[k].get_point_coordinates(n_points, points+k, n_matrices);
+    }
+    return;
+
+}
+
+template<class F>
+std::vector<double> get_points(
+    const MatrixView<F>* all_matrices,
+    int n_matrices,
+    long long n_points
+) {
+    std::vector<double> points(n_points * n_matrices);
+    get_points(all_matrices, n_matrices, n_points, &points[0]);
+    return points;
+}
+
 template<class F>
 void fill_sobol(MatrixView<F> out,
     MatrixView<F> poly,
@@ -2063,6 +2097,333 @@ struct MatrixRange {
         return iterator(this, true);
     }
 };
+
+enum DiscrepancyPlotMetric {
+    DISCREPANCY_GENERALIZED_L2,
+    DISCREPANCY_STAR
+};
+
+extern inline const char* discrepancy_metric_name(DiscrepancyPlotMetric metric);
+extern inline double safe_log10(double x);
+extern inline void svg_text(FILE* f, double x, double y, const char* text, int font_size = 12, const char* anchor = "middle", const char* fill = "#333333");
+extern inline void svg_line(FILE* f, double x1, double y1, double x2, double y2, const char* stroke, double width = 1.0, const char* extra = "");
+extern inline void svg_circle(FILE* f, double cx, double cy, double r, const char* fill, const char* stroke = "#333333");
+
+
+template<class F>
+bool plot_discrepancy_svg(const MatrixView<F>* all_matrices,
+    int n_matrices,
+    double m_min,
+    double m_max,
+    double octave_step,
+    DiscrepancyPlotMetric metric,
+    const char* filename,
+    int width = 900,
+    int height = 560) {
+    assert(all_matrices != 0);
+    assert(n_matrices > 0);
+    assert(m_max >= m_min);
+    assert(octave_step > 0.0);
+    assert(filename != 0);
+
+    enum { Q = GFCardinality<F::p, F::r>::value };
+
+    const int dim = n_matrices;
+
+    struct Sample {
+        double m_value;
+        long long n_points;
+        double discrepancy;
+    };
+
+    std::vector<Sample> samples;
+
+    long long previous_n = -1;
+
+    for (double m = m_min; m <= m_max + 1e-12; m += octave_step) {
+        const double nf = std::pow(double(Q), m);
+        long long n_points = static_cast<long long>(std::floor(nf + 0.5));
+
+        if (n_points < 1) {
+            n_points = 1;
+        }
+
+        // Évite les doublons quand q^m arrondi donne le même entier.
+        if (n_points == previous_n) {
+            continue;
+        }
+
+        previous_n = n_points;
+
+        std::vector<double> points;
+        points.resize(static_cast<size_t>(n_points) * static_cast<size_t>(dim));
+
+        get_points<F>(
+            all_matrices,
+            n_matrices,
+            n_points,
+            &points[0]
+        );
+
+        double disc = 0.0;
+
+        if (metric == DISCREPANCY_GENERALIZED_L2) {
+            disc = generalized_l2_discrepancy(&points[0],
+                static_cast<int>(n_points),
+                dim);
+        }
+        else {
+            disc = star_discrepancy(&points[0],
+                static_cast<int>(n_points),
+                dim);
+        }
+
+        Sample s;
+        s.m_value = std::log(double(n_points)) / std::log(double(Q));
+        s.n_points = n_points;
+        s.discrepancy = disc;
+
+        samples.push_back(s);
+    }
+
+    if (samples.empty()) {
+        return false;
+    }
+
+    double xmin = samples.front().m_value;
+    double xmax = samples.back().m_value;
+
+    if (xmax <= xmin) {
+        xmax = xmin + 1.0;
+    }
+
+    double ymin = samples[0].discrepancy;
+    double ymax = samples[0].discrepancy;
+
+    for (size_t i = 0; i < samples.size(); ++i) {
+        ymin = std::min(ymin, samples[i].discrepancy);
+        ymax = std::max(ymax, samples[i].discrepancy);
+    }
+
+    const double min_positive = 1e-300;
+
+    if (ymin <= 0.0) {
+        ymin = min_positive;
+    }
+
+    if (ymax <= 0.0) {
+        ymax = 1.0;
+    }
+
+    // Petite marge verticale en log.
+    double log_ymin = safe_log10(ymin);
+    double log_ymax = safe_log10(ymax);
+
+    if (log_ymax <= log_ymin) {
+        log_ymax = log_ymin + 1.0;
+    }
+
+    {
+        const double pad = 0.08 * (log_ymax - log_ymin);
+        log_ymin -= pad;
+        log_ymax += pad;
+    }
+
+    const double left = 90.0;
+    const double right = 30.0;
+    const double top = 55.0;
+    const double bottom = 75.0;
+
+    const double plot_x0 = left;
+    const double plot_y0 = top;
+    const double plot_w = double(width) - left - right;
+    const double plot_h = double(height) - top - bottom;
+    const double plot_x1 = plot_x0 + plot_w;
+    const double plot_y1 = plot_y0 + plot_h;
+
+    auto map_x = [&](double x) -> double {
+        return plot_x0 + (x - xmin) / (xmax - xmin) * plot_w;
+        };
+
+    auto map_y = [&](double y) -> double {
+        const double ly = safe_log10(y);
+        return plot_y1 - (ly - log_ymin) / (log_ymax - log_ymin) * plot_h;
+        };
+
+    FILE* f = std::fopen(filename, "w");
+    if (!f) {
+        return false;
+    }
+
+    std::fprintf(f,
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" "
+        "version=\"1.1\" width=\"%d\" height=\"%d\" "
+        "viewBox=\"0 0 %d %d\">\n",
+        width, height, width, height);
+
+    std::fprintf(f,
+        "<rect x=\"0\" y=\"0\" width=\"%d\" height=\"%d\" fill=\"#ffffff\"/>\n",
+        width, height);
+
+    // Fond du plot
+    std::fprintf(f,
+        "<rect x=\"%.3f\" y=\"%.3f\" width=\"%.3f\" height=\"%.3f\" "
+        "fill=\"#fbfbfb\" stroke=\"#cccccc\" stroke-width=\"1\"/>\n",
+        plot_x0, plot_y0, plot_w, plot_h);
+
+    // Titre
+    {
+        char title[512];
+        std::snprintf(title, sizeof(title),
+            "%s, dimension %d, GF(%d)",
+            discrepancy_metric_name(metric),
+            dim,
+            Q);
+
+        svg_text(f, width * 0.5, 28.0, title, 18, "middle", "#222222");
+    }
+
+    // Grille verticale + ticks x
+    {
+        const int m_tick_min = static_cast<int>(std::ceil(xmin - 1e-12));
+        const int m_tick_max = static_cast<int>(std::floor(xmax + 1e-12));
+
+        for (int mt = m_tick_min; mt <= m_tick_max; ++mt) {
+            const double x = map_x(double(mt));
+
+            svg_line(f, x, plot_y0, x, plot_y1, "#e0e0e0", 1.0);
+
+            char label[64];
+            std::snprintf(label, sizeof(label), "%d", mt);
+            svg_text(f, x, plot_y1 + 20.0, label, 12, "middle", "#333333");
+        }
+    }
+
+    // Grille horizontale log10 + ticks y
+    {
+        const int e_min = static_cast<int>(std::ceil(log_ymin));
+        const int e_max = static_cast<int>(std::floor(log_ymax));
+
+        for (int e = e_min; e <= e_max; ++e) {
+            const double yv = std::pow(10.0, double(e));
+            const double y = map_y(yv);
+
+            svg_line(f, plot_x0, y, plot_x1, y, "#e0e0e0", 1.0);
+
+            char label[64];
+            std::snprintf(label, sizeof(label), "1e%d", e);
+            svg_text(f, plot_x0 - 12.0, y + 4.0, label, 12, "end", "#333333");
+        }
+    }
+
+    // Axes
+    svg_line(f, plot_x0, plot_y1, plot_x1, plot_y1, "#333333", 1.4);
+    svg_line(f, plot_x0, plot_y0, plot_x0, plot_y1, "#333333", 1.4);
+
+    // Labels axes
+    {
+        char xlabel[256];
+        std::snprintf(xlabel, sizeof(xlabel),
+            "log_%d(N)    where N = number of points",
+            Q);
+
+        svg_text(f, plot_x0 + plot_w * 0.5, height - 25.0,
+            xlabel, 14, "middle", "#222222");
+
+        // Label y tourné.
+        std::fprintf(f,
+            "<text x=\"24\" y=\"%.3f\" "
+            "font-family=\"Arial, Helvetica, sans-serif\" "
+            "font-size=\"14\" text-anchor=\"middle\" fill=\"#222222\" "
+            "transform=\"rotate(-90 24 %.3f)\">%s</text>\n",
+            plot_y0 + plot_h * 0.5,
+            plot_y0 + plot_h * 0.5,
+            discrepancy_metric_name(metric));
+    }
+
+    // Courbe
+    const char* curve_color = "#5B8DEF";
+    const char* point_color = "#A7C7F9";
+
+    if (samples.size() >= 2) {
+        std::fprintf(f,
+            "<polyline fill=\"none\" stroke=\"%s\" stroke-width=\"2.2\" "
+            "stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"",
+            curve_color);
+
+        for (size_t i = 0; i < samples.size(); ++i) {
+            const double x = map_x(samples[i].m_value);
+            const double y = map_y(samples[i].discrepancy);
+            std::fprintf(f, "%.3f,%.3f ", x, y);
+        }
+
+        std::fprintf(f, "\"/>\n");
+    }
+
+    // Points + tooltips SVG natifs
+    for (size_t i = 0; i < samples.size(); ++i) {
+        const double x = map_x(samples[i].m_value);
+        const double y = map_y(samples[i].discrepancy);
+
+        std::fprintf(f,
+            "<circle cx=\"%.3f\" cy=\"%.3f\" r=\"4.0\" "
+            "fill=\"%s\" stroke=\"#2f5fa7\" stroke-width=\"1\">\n",
+            x, y, point_color);
+
+        std::fprintf(f,
+            "<title>N=%lld, log_%d(N)=%.6g, discrepancy=%.12g</title>\n",
+            samples[i].n_points,
+            Q,
+            samples[i].m_value,
+            samples[i].discrepancy);
+
+        std::fprintf(f, "</circle>\n");
+    }
+
+    // Légende / résumé
+    {
+        const double lx = plot_x1 - 260.0;
+        const double ly = plot_y0 + 16.0;
+
+        std::fprintf(f,
+            "<rect x=\"%.3f\" y=\"%.3f\" width=\"245\" height=\"74\" "
+            "rx=\"6\" ry=\"6\" fill=\"#ffffff\" stroke=\"#d0d0d0\"/>\n",
+            lx, ly);
+
+        char line1[256];
+        std::snprintf(line1, sizeof(line1),
+            "samples: %d", static_cast<int>(samples.size()));
+
+        char line2[256];
+        std::snprintf(line2, sizeof(line2),
+            "m range: %.3g to %.3g, step %.3g",
+            m_min, m_max, octave_step);
+
+        char line3[256];
+        std::snprintf(line3, sizeof(line3),
+            "N range: %lld to %lld",
+            samples.front().n_points,
+            samples.back().n_points);
+
+        svg_circle(f, lx + 14.0, ly + 18.0, 4.0, point_color, "#2f5fa7");
+        svg_line(f, lx + 25.0, ly + 18.0, lx + 55.0, ly + 18.0, curve_color, 2.2);
+
+        svg_text(f, lx + 64.0, ly + 22.0,
+            discrepancy_metric_name(metric),
+            12, "start", "#333333");
+
+        svg_text(f, lx + 12.0, ly + 42.0, line1, 12, "start", "#555555");
+        svg_text(f, lx + 12.0, ly + 57.0, line2, 12, "start", "#555555");
+        svg_text(f, lx + 12.0, ly + 72.0, line3, 12, "start", "#555555");
+    }
+
+    std::fprintf(f, "</svg>\n");
+    std::fclose(f);
+
+    return true;
+}
+
+
 
 
 typedef Field<2, 1> GF2;

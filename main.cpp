@@ -240,7 +240,7 @@ void test_list_matrices() {
 
 void test_draw_points() {
 
-	typedef GF5 F;
+	typedef GF4 F;
 	typedef F::T T;
 
 	// theses Sobol' polynomials work nicely in GF3, but produce funny points in GF4
@@ -261,6 +261,39 @@ void test_draw_points() {
 	S1.save_svg("matrix1.svg");
 }
 
+void test_discrepancy() {
+
+	typedef GF3 F;
+	typedef F::T T;
+
+	const int n_pts = std::pow(std::pow((double) F::p, F::r), 7);
+
+	// theses Sobol' polynomials work nicely in GF3, but produce funny points in GF4
+	Matrix<F> poly1(1, 3, { 1, 2, 0 });
+	Matrix<F> init1(3, 3, { 1, 1, 1, 0, 1, 1, 0, 0, 1 });
+	SobolMatrix<F> S1(15, poly1.view(), init1.view());
+
+	Matrix<F> poly2(1, 3, { 2, 2, 0 });
+	Matrix<F> init2(3, 3, { 1, 0, 1,  0, 1, 2, 0, 0, 1 });
+	SobolMatrix<F> S2(15, poly2.view(), init2.view());
+
+	std::vector<MatrixView<F> > m(2);
+	m[0] = S1.view();
+	m[1] = S2.view();
+
+	std::vector<double> pts = get_points<F>(&m[0], m.size(), n_pts);
+	double stardisc = star_discrepancy(&pts[0], n_pts, m.size());
+	
+
+	print_point_range(&pts[0], n_pts, m.size());
+	std::cout << "n_pts: "<<n_pts<<", star discrepancy="<< stardisc << std::endl;
+
+	double gl2disc = generalized_l2_discrepancy(&pts[0], n_pts, m.size());
+	std::cout << "n_pts: " << n_pts << ", generalized l2 discrepancy=" << gl2disc << std::endl;
+
+	plot_discrepancy_svg(&m[0], m.size(), 1, 7, 1 / 3., DISCREPANCY_STAR, "plot_disc.svg");
+}
+
 
 int main() {
 
@@ -272,15 +305,17 @@ int main() {
 
 	test_t0();
 
-	test_rank();
+	//test_rank();
 
-	test_t_values();
+	//test_t_values();
 
-	testSobolCharacteristicMatrix();
+	//testSobolCharacteristicMatrix();
 
 	test_draw_points();
 
-	test_list_matrices();
+	//test_list_matrices();
+
+	test_discrepancy();
 
 	return 0;
 };
