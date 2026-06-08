@@ -409,170 +409,258 @@ inline double sanitize_unit_coord(double x) {
 }
 
 
-double star_discrepancy_exact_bitset(const double* points,
-    int npts,
-    int dim) {
-    assert(points != 0);
-    assert(npts > 0);
-    assert(dim > 0);
+struct StarDiscrepancyBB {
+    const double* points;
+    int npts;
+    int dim;
 
-    const double invN = 1.0 / double(npts);
-    const int words = (npts + 63) >> 6;
+    int words;
+    double invN;
 
-    // Copie sanitizée.
-    std::vector<double> P(npts * dim);
+    std::vector<double> P;
+    std::vector<std::vector<double> > coords;
 
-    for (int i = 0; i < npts; ++i) {
-        for (int j = 0; j < dim; ++j) {
-            P[i * dim + j] =
-                sanitize_unit_coord(points[i * dim + j]);
-        }
+    std::vector<std::vector<uint64_t> > less_masks;
+    std::vector<std::vector<uint64_t> > leq_masks;
+    std::vector<uint64_t> all_ones;
+    std::vector<uint64_t> tmp_mask;
+
+    double best;
+
+    StarDiscrepancyBB(const double* points_,
+        int npts_,
+        int dim_)
+        : points(points_),
+        npts(npts_),
+        dim(dim_),
+        words((npts_ + 63) >> 6),
+        invN(1.0 / double(npts_)),
+        best(0.0) {
+        assert(points != 0);
+        assert(npts > 0);
+        assert(dim > 0);
+
+        build();
     }
 
-    // Coordonnées candidates par dimension.
-    std::vector<std::vector<double> > coords(dim);
-
-    for (int j = 0; j < dim; ++j) {
-        coords[j].reserve(npts + 1);
+    void build() {
+        P.resize(npts * dim);
 
         for (int i = 0; i < npts; ++i) {
-            coords[j].push_back(P[i * dim + j]);
+            for (int j = 0; j < dim; ++j) {
+                P[i * dim + j] =
+                    sanitize_unit_coord(points[i * dim + j]);
+            }
         }
 
-        coords[j].push_back(1.0);
+        coords.resize(dim);
 
-        std::sort(coords[j].begin(), coords[j].end());
-
-        coords[j].erase(
-            std::unique(coords[j].begin(), coords[j].end()),
-            coords[j].end()
-        );
-    }
-
-    // Total number of candidate boxes
-    unsigned long long total_boxes = 1;
-
-    for (int j = 0; j < dim; ++j) {
-        total_boxes *= static_cast<unsigned long long>(coords[j].size());
-    }
-
-    assert(total_boxes <=
-        static_cast<unsigned long long>(std::numeric_limits<long long>::max()));
-
-    // Mask all-ones valid over npts bits.
-    std::vector<uint64_t> all_ones(words, ~uint64_t(0));
-
-    const int extra_bits = words * 64 - npts;
-    if (extra_bits > 0) {
-        all_ones[words - 1] >>= extra_bits;
-    }
-
-    // less_masks[j][c][w] : points where p_j < coords[j][c]
-    // leq_masks[j][c][w]  : points where p_j <= coords[j][c]
-    std::vector<std::vector<uint64_t> > less_masks(dim);
-    std::vector<std::vector<uint64_t> > leq_masks(dim);
-
-    for (int j = 0; j < dim; ++j) {
-        const int nj = static_cast<int>(coords[j].size());
-
-        less_masks[j].assign(nj * words, uint64_t(0));
-        leq_masks[j].assign(nj * words, uint64_t(0));
-
-        for (int c = 0; c < nj; ++c) {
-            const double x = coords[j][c];
-
-            uint64_t* less = &less_masks[j][c * words];
-            uint64_t* leq = &leq_masks[j][c * words];
+        for (int j = 0; j < dim; ++j) {
+            coords[j].reserve(npts + 1);
 
             for (int i = 0; i < npts; ++i) {
-                const double p = P[i * dim + j];
-                const uint64_t bit = uint64_t(1) << (i & 63);
-                const int w = i >> 6;
+                coords[j].push_back(P[i * dim + j]);
+            }
 
-                if (p < x) {
-                    less[w] |= bit;
-                }
+            coords[j].push_back(1.0);
 
-                if (p <= x) {
-                    leq[w] |= bit;
+            std::sort(coords[j].begin(), coords[j].end());
+
+            coords[j].erase(
+                std::unique(coords[j].begin(), coords[j].end()),
+                coords[j].end()
+            );
+        }
+
+        all_ones.assign(words, ~uint64_t(0));
+
+        const int extra_bits = words * 64 - npts;
+        if (extra_bits > 0) {
+            all_ones[words - 1] >>= extra_bits;
+        }
+
+        tmp_mask.resize(words);
+
+        less_masks.resize(dim);
+        leq_masks.resize(dim);
+
+        for (int j = 0; j < dim; ++j) {
+            const int nj = static_cast<int>(coords[j].size());
+
+            less_masks[j].assign(nj * words, uint64_t(0));
+            leq_masks[j].assign(nj * words, uint64_t(0));
+
+            for (int c = 0; c < nj; ++c) {
+                const double x = coords[j][c];
+
+                uint64_t* less = &less_masks[j][c * words];
+                uint64_t* leq = &leq_masks[j][c * words];
+
+                for (int i = 0; i < npts; ++i) {
+                    const double p = P[i * dim + j];
+
+                    const int w = i >> 6;
+                    const uint64_t bit = uint64_t(1) << (i & 63);
+
+                    if (p < x) {
+                        less[w] |= bit;
+                    }
+
+                    if (p <= x) {
+                        leq[w] |= bit;
+                    }
                 }
             }
         }
     }
 
-    double global_best = 0.0;
+    int count_intersection(const std::vector<int>& idx,
+        bool use_leq) {
+        for (int w = 0; w < words; ++w) {
+            tmp_mask[w] = all_ones[w];
+        }
 
-#pragma omp parallel
-    {
-        std::vector<uint64_t> cur_less(words);
-        std::vector<uint64_t> cur_leq(words);
+        for (int j = 0; j < dim; ++j) {
+            const std::vector<uint64_t>& masks =
+                use_leq ? leq_masks[j] : less_masks[j];
 
-        double local_best = 0.0;
-
-#pragma omp for schedule(dynamic)
-        for (long long linear = 0;
-            linear < static_cast<long long>(total_boxes);
-            ++linear) {
-
-            std::copy(all_ones.begin(), all_ones.end(), cur_less.begin());
-            std::copy(all_ones.begin(), all_ones.end(), cur_leq.begin());
-
-            unsigned long long code = static_cast<unsigned long long>(linear);
-
-            double volume = 1.0;
-
-            for (int j = 0; j < dim; ++j) {
-                const int nj = static_cast<int>(coords[j].size());
-                const int c = static_cast<int>(code % nj);
-                code /= nj;
-
-                volume *= coords[j][c];
-
-                const uint64_t* less =
-                    &less_masks[j][c * words];
-
-                const uint64_t* leq =
-                    &leq_masks[j][c * words];
-
-                for (int w = 0; w < words; ++w) {
-                    cur_less[w] &= less[w];
-                    cur_leq[w] &= leq[w];
-                }
-            }
-
-            int count_less = 0;
-            int count_leq = 0;
+            const uint64_t* mj = &masks[idx[j] * words];
 
             for (int w = 0; w < words; ++w) {
-                count_less += popcount_u64(cur_less[w]);
-                count_leq += popcount_u64(cur_leq[w]);
-            }
-
-            const double dplus =
-                double(count_leq) * invN - volume;
-
-            const double dminus =
-                volume - double(count_less) * invN;
-
-            if (dplus > local_best) {
-                local_best = dplus;
-            }
-
-            if (dminus > local_best) {
-                local_best = dminus;
+                tmp_mask[w] &= mj[w];
             }
         }
 
-#pragma omp critical
-        {
-            if (local_best > global_best) {
-                global_best = local_best;
-            }
+        int count = 0;
+
+        for (int w = 0; w < words; ++w) {
+            count += popcount_u64(tmp_mask[w]);
+        }
+
+        return count;
+    }
+
+    double volume_from_indices(const std::vector<int>& idx) const {
+        double vol = 1.0;
+
+        for (int j = 0; j < dim; ++j) {
+            vol *= coords[j][idx[j]];
+        }
+
+        return vol;
+    }
+
+    void evaluate_single_box(const std::vector<int>& idx) {
+        const double volume = volume_from_indices(idx);
+
+        const int count_less = count_intersection(idx, false);
+        const int count_leq = count_intersection(idx, true);
+
+        const double dplus =
+            double(count_leq) * invN - volume;
+
+        const double dminus =
+            volume - double(count_less) * invN;
+
+        if (dplus > best) {
+            best = dplus;
+        }
+
+        if (dminus > best) {
+            best = dminus;
         }
     }
 
-    return global_best;
+    void recurse(std::vector<int>& lo,
+        std::vector<int>& hi) {
+        // Compute a rigorous upper bound for all boxes in this block.
+        const double vol_min = volume_from_indices(lo);
+        const double vol_max = volume_from_indices(hi);
+
+        const int count_leq_max =
+            count_intersection(hi, true);
+
+        const int count_less_min =
+            count_intersection(lo, false);
+
+        const double ub_plus =
+            double(count_leq_max) * invN - vol_min;
+
+        const double ub_minus =
+            vol_max - double(count_less_min) * invN;
+
+        const double ub =
+            ub_plus > ub_minus ? ub_plus : ub_minus;
+
+        if (ub <= best + 1e-15) {
+            return;
+        }
+
+        // Check whether the block is a single grid point.
+        int split_dim = -1;
+        int largest_range = 0;
+
+        for (int j = 0; j < dim; ++j) {
+            const int r = hi[j] - lo[j];
+
+            if (r > largest_range) {
+                largest_range = r;
+                split_dim = j;
+            }
+        }
+
+        if (split_dim < 0) {
+            evaluate_single_box(lo);
+            return;
+        }
+
+        const int d = split_dim;
+        const int mid = (lo[d] + hi[d]) >> 1;
+
+        // Visit the side with larger coordinates first.
+        // It often improves best quickly via Dminus.
+        {
+            const int old_lo = lo[d];
+            lo[d] = mid + 1;
+            recurse(lo, hi);
+            lo[d] = old_lo;
+        }
+
+        {
+            const int old_hi = hi[d];
+            hi[d] = mid;
+            recurse(lo, hi);
+            hi[d] = old_hi;
+        }
+    }
+
+    double compute() {
+        std::vector<int> lo(dim);
+        std::vector<int> hi(dim);
+
+        for (int j = 0; j < dim; ++j) {
+            lo[j] = 0;
+            hi[j] = static_cast<int>(coords[j].size()) - 1;
+        }
+
+        // Evaluate the full upper corner first.
+        // This gives a nonzero lower bound immediately.
+        evaluate_single_box(hi);
+
+        recurse(lo, hi);
+
+        return best;
+    }
+};
+
+double star_discrepancy_exact_bb(const double* points,
+    int npts,
+    int dim) {
+    StarDiscrepancyBB solver(points, npts, dim);
+    return solver.compute();
 }
+
+
 
 struct StarPoint2D {
     double x;
@@ -724,7 +812,7 @@ double star_discrepancy(const double* points,
         return star_discrepancy_2d_exact_sweep(points, npts);
     }
 
-    return star_discrepancy_exact_bitset(points, npts, dim);
+    return star_discrepancy_exact_bb(points, npts, dim);
 }
 
 void print_point_range(const double* points, int npts, int dim) {
