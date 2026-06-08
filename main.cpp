@@ -226,14 +226,46 @@ void test_list_matrices() {
 		}
 	}
 
-	MatrixRange<F> range(min_matrix.view(), max_matrix.view(), MatrixRangeRandomized, 123456789);
+	MatrixRange<F> range_fully_randomized(min_matrix.view(), max_matrix.view(), MatrixRangeGlobalRandomized, 123456789);
 
 	long long num_matrix = 0;
-	for (auto it = range.begin(); it != range.end(); ++it) {
+	for (auto it = range_fully_randomized.begin(); it != range_fully_randomized.end(); ++it) {
 		MatrixView<F> A = it->view();
 		std::cout << "Matrix " << num_matrix << std::endl;
 		std::cout << A << std::endl;
 		num_matrix++;
+	}
+
+
+	MatrixRange<F> range_DFS_randomized(
+		min_matrix.view(),
+		max_matrix.view(),
+		MatrixRangeDFSValuePermuted,
+		12345
+	);
+
+	num_matrix = 0;
+	// parallel exploration of the matrices
+#pragma omp parallel
+	{
+		Matrix<F> local(range_DFS_randomized.rows(), range_DFS_randomized.cols());
+
+#pragma omp for schedule(dynamic, 1)
+		for (long long s = 0; s < (long long)range_DFS_randomized.size(); ++s) {
+			range_DFS_randomized.decode_step(uint64_t(s), local.view());
+
+			MatrixView<F> A = local.view();
+			int rank = A.rank();
+#pragma omp critical
+			{
+				std::cout << "Matrix " << num_matrix << std::endl;
+				std::cout << A << std::endl;
+				std::cout << "rank = " << rank << std::endl; // ok, all matrices are full rank since triangular with positive diagonal
+			}
+
+#pragma atomic
+			num_matrix++;
+		}
 	}
 }
 

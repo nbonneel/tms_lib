@@ -2033,7 +2033,14 @@ struct SobolMatrixView : public MatrixView<F> {
 
 enum MatrixRangeOrder {
     MatrixRangeSequential,
-    MatrixRangeRandomized
+
+    // Global affine permutation of the linear rank.
+    // Visits all matrices once in a pseudo-random global order.
+    MatrixRangeGlobalRandomized,
+
+    // Same DFS / mixed-radix traversal as sequential,
+    // but each free coefficient has its local values randomly permuted.
+    MatrixRangeDFSValuePermuted
 };
 
 inline uint64_t gcd_u64(uint64_t a, uint64_t b) {
@@ -2052,6 +2059,19 @@ inline uint64_t splitmix64_next(uint64_t& x) {
     return z ^ (z >> 31);
 }
 
+inline uint64_t bounded_splitmix64(uint64_t& rng, uint64_t bound) {
+    assert(bound > 0);
+
+    const uint64_t threshold = (0ULL - bound) % bound;
+
+    for (;;) {
+        const uint64_t r = splitmix64_next(rng);
+        if (r >= threshold) {
+            return r % bound;
+        }
+    }
+}
+
 template<class F>
 struct MatrixRange {
     typedef typename F::T T;
@@ -2063,6 +2083,10 @@ struct MatrixRange {
     std::vector<int> free_index;
     std::vector<int> free_min;
     std::vector<int> free_extent;
+
+    // For MatrixRangeDFSValuePermuted.
+    // value_perm[k][u] is an offset in [0, free_extent[k]-1].
+    std::vector<std::vector<int> > value_perm;
 
     uint64_t total;
     uint64_t start_rank;
@@ -2088,6 +2112,9 @@ struct MatrixRange {
 
         const int N = minM.m * minM.n;
 
+        // Row-major free variables.
+        // Decoding below makes the last free variable fastest-changing,
+        // matching the usual DFS / odometer order.
         for (int idx = 0; idx < N; ++idx) {
             const int a = gf_to_raw_index<F>(minM[idx]);
             const int b = gf_to_raw_index<F>(maxM[idx]);
@@ -2110,12 +2137,11 @@ struct MatrixRange {
             }
         }
 
-        if (order == MatrixRangeRandomized && total > 1) {
-            uint64_t rng = seed;
+        uint64_t rng = seed;
 
+        if (order == MatrixRangeGlobalRandomized && total > 1) {
             start_rank = splitmix64_next(rng) % total;
 
-            // Pick a stride coprime with total.
             do {
                 stride = splitmix64_next(rng) % total;
             } while (stride == 0 || gcd_u64(stride, total) != 1);
@@ -2124,66 +2150,137 @@ struct MatrixRange {
             start_rank = 0;
             stride = 1;
         }
+
+        if (order == MatrixRangeDFSValuePermuted) {
+            build_value_permutations(rng);
+        }
     }
 
-    void decode_rank(uint64_t rank) {
-        // Reset fixed and constrained entries.
-        // This also handles entries with min == max.
-        const int N = curM.m * curM.n;
-        for (int i = 0; i < N; ++i) {
-            curM[i] = minM[i];
+    int rows() const {
+        return minM.m;
+    }
+
+    int cols() const {
+        return minM.n;
+    }
+
+    uint64_t size() const {
+        return total;
+    }
+
+    void build_value_permutations(uint64_t& rng) {
+        value_perm.resize(free_extent.size());
+
+        for (std::size_t k = 0; k < free_extent.size(); ++k) {
+            const int e = free_extent[k];
+
+            value_perm[k].resize(e);
+
+            for (int i = 0; i < e; ++i) {
+                value_perm[k][i] = i;
+            }
+
+            // Fisher-Yates with splitmix64.
+            for (int i = e - 1; i > 0; --i) {
+                const int j =
+                    int(bounded_splitmix64(rng, uint64_t(i + 1)));
+
+                std::swap(value_perm[k][i], value_perm[k][j]);
+            }
+        }
+    }
+
+    uint64_t rank_from_step(uint64_t step) const {
+        assert(step < total);
+
+        if (order == MatrixRangeGlobalRandomized && total > 1) {
+            // rank = (start_rank + step * stride) mod total.
+            // Avoid overflow by repeated modular multiplication when needed.
+            // For typical search spaces fitting comfortably in uint64_t,
+            // unsigned __int128 is the cleanest option under GCC/Clang.
+#if defined(__SIZEOF_INT128__)
+            return uint64_t(
+                (static_cast<unsigned __int128>(start_rank)
+                    + static_cast<unsigned __int128>(step) * stride) % total
+            );
+#else
+            // Portable fallback: O(log step) modular multiplication.
+            uint64_t a = stride % total;
+            uint64_t b = step;
+            uint64_t r = start_rank % total;
+
+            while (b) {
+                if (b & 1ULL) {
+                    r = (r >= total - a) ? (r - (total - a)) : (r + a);
+                }
+
+                b >>= 1ULL;
+
+                if (b) {
+                    a = (a >= total - a) ? (a - (total - a)) : (a + a);
+                }
+            }
+
+            return r;
+#endif
         }
 
-        // Mixed-radix decoding.
-        // free_index[0] is the fastest-changing coordinate.
-        for (size_t k = 0; k < free_index.size(); ++k) {
-            const uint64_t base = uint64_t(free_extent[k]);
-            const int digit = int(rank % base);
+        return step;
+    }
+
+    void decode_rank(uint64_t rank, MatrixView<F> out) const {
+        assert(out.m == minM.m);
+        assert(out.n == minM.n);
+
+        const int N = minM.m * minM.n;
+
+        // Copy fixed baseline.
+        for (int i = 0; i < N; ++i) {
+            out[i] = minM[i];
+        }
+
+        // Last free variable is fastest-changing.
+        for (int kk = int(free_index.size()) - 1; kk >= 0; --kk) {
+            const uint64_t base = uint64_t(free_extent[kk]);
+
+            int digit = int(rank % base);
             rank /= base;
 
-            const int raw_value = free_min[k] + digit;
-            curM[free_index[k]] = T{ raw_value };
+            if (order == MatrixRangeDFSValuePermuted) {
+                digit = value_perm[kk][digit];
+            }
+
+            const int raw_value = free_min[kk] + digit;
+            out[free_index[kk]] = T{ raw_value };
         }
+    }
+
+    void decode_step(uint64_t step, MatrixView<F> out) const {
+        const uint64_t rank = rank_from_step(step);
+        decode_rank(rank, out);
     }
 
     struct iterator {
         MatrixRange<F>* range;
         uint64_t step;
-        uint64_t rank;
 
-        iterator(MatrixRange<F>* range_,
-            uint64_t step_,
-            uint64_t rank_)
+        iterator(MatrixRange<F>* range_, uint64_t step_)
             : range(range_),
-            step(step_),
-            rank(rank_) {
+            step(step_) {
         }
 
         Matrix<F>& operator*() {
-            range->decode_rank(rank);
+            range->decode_step(step, range->curM.view());
             return range->curM;
         }
 
         Matrix<F>* operator->() {
-            range->decode_rank(rank);
+            range->decode_step(step, range->curM.view());
             return &range->curM;
         }
 
         iterator& operator++() {
             ++step;
-
-            if (range->total > 1) {
-                // rank = (rank + stride) % total, without overflow.
-                const uint64_t remaining = range->total - rank;
-
-                if (range->stride >= remaining) {
-                    rank = range->stride - remaining;
-                }
-                else {
-                    rank += range->stride;
-                }
-            }
-
             return *this;
         }
 
@@ -2193,11 +2290,11 @@ struct MatrixRange {
     };
 
     iterator begin() {
-        return iterator(this, 0, start_rank);
+        return iterator(this, 0);
     }
 
     iterator end() {
-        return iterator(this, total, 0);
+        return iterator(this, total);
     }
 };
 
