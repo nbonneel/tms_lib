@@ -15,9 +15,17 @@ extern char div_non_prime[MAX_GF + 1][MAX_GF][MAX_GF];
 extern char neg_non_prime[MAX_GF + 1][MAX_GF];
 extern char invGalois[MAX_GF + 1][MAX_GF];
 
+class OwenTreeND;
+
 double generalized_l2_discrepancy(const double* points, int npts, int dim, int block_size = 64);
 double star_discrepancy(const double* points, int npts, int dim);
 void print_point_range(const double* points, int npts, int dim);
+int t_factor_pointset(const double* points, int npts, int dim, int base, bool dbg = false);
+
+OwenTreeND make_random_owen_tree_nd(int dim, int base, int depth, uint64_t seed = 0x123456789ABCDEF0ULL);
+void apply_owen_permutation_real(const double* points_in, double* points_out, int npts, int dim, int m,  const OwenTreeND& tree);
+inline uint64_t ipow_u64_checked(int base, int exp);
+
 
 template<int p, int r>
 struct GFCardinality {
@@ -299,7 +307,7 @@ struct MatrixBase {
         enum { Q = GFCardinality<F::p, F::r>::value };
 
         int n_digits = cols();
-        if (std::floor(log((double)nb_points) / log((double)Q)) + 1 > n_digits) {
+        if (std::floor(log((double)nb_points) / log((double)Q))  > n_digits) {
             std::cout << "request too many points : matrix is too small" << std::endl;
         }
 
@@ -309,11 +317,15 @@ struct MatrixBase {
         for (long long i = 0; i < nb_points; i++) {
             decompose_integer_into_base<F>(i, digits.data(), n_digits);
             result_mul = (*this)* digits;
-            double val = 0;
-            for (int j = 0; j < n_digits; j++) {
-                val += gf_to_raw_index<F>(result_mul[j]) / (double)std::pow((double)Q, (double)j+1);
+            uint64_t intval = 0;
+
+            for (int j = 0; j < n_digits; ++j) {
+                intval = intval * uint64_t(Q)
+                    + uint64_t(gf_to_raw_index<F>(result_mul[j]));
             }
-            coords[i*stride] = val;
+
+            const double denom = double(ipow_u64_checked(Q, n_digits));
+            coords[i * stride] = double(intval) / denom;
         }
     }
 
@@ -2678,6 +2690,113 @@ double generalized_l2_discrepancy_compile_time_dimension(const double* points,
         )
     );
 }
+
+
+
+template<class Callback>
+bool enumerate_compositions_rec(int dim,
+    int remaining,
+    int pos,
+    std::vector<int>& k,
+    Callback& cb) {
+    if (pos == dim - 1) {
+        k[pos] = remaining;
+        return cb(k);
+    }
+
+    for (int v = 0; v <= remaining; ++v) {
+        k[pos] = v;
+
+        if (!enumerate_compositions_rec(dim, remaining - v, pos + 1, k, cb)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+template<class Callback>
+bool enumerate_compositions(int dim,
+    int total,
+    Callback cb) {
+    std::vector<int> k(dim, 0);
+    return enumerate_compositions_rec(dim, total, 0, k, cb);
+}
+
+struct FastRNG {
+    uint64_t state;
+
+    explicit FastRNG(uint64_t seed)
+        : state(seed) {
+    }
+
+    inline uint64_t next_u64() {
+        uint64_t z = (state += 0x9E3779B97F4A7C15ULL);
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+        return z ^ (z >> 31);
+    }
+
+    inline uint64_t bounded(uint64_t bound) {
+        assert(bound > 0);
+
+        // Unbiased rejection sampling.
+        const uint64_t threshold = (0ULL - bound) % bound;
+
+        for (;;) {
+            const uint64_t r = next_u64();
+
+            if (r >= threshold) {
+                return r % bound;
+            }
+        }
+    }
+};
+
+struct OwenTree1D {
+    int base;
+    int depth;
+
+    // level_perm[level] has size base^level * base.
+    // Permutation at node prefix is:
+    //     level_perm[level][prefix * base + digit]
+    std::vector<std::vector<int> > level_perm;
+
+    OwenTree1D()
+        : base(0), depth(0) {
+    }
+
+    OwenTree1D(int base_, int depth_)
+        : base(base_),
+        depth(depth_),
+        level_perm(depth_) {
+    }
+};
+
+
+struct OwenTreeND {
+    int base;
+    int depth;
+    int dim;
+
+    std::vector<OwenTree1D> trees;
+
+    OwenTreeND()
+        : base(0), depth(0), dim(0) {
+    }
+
+    OwenTreeND(int dim_, int base_, int depth_)
+        : base(base_),
+        depth(depth_),
+        dim(dim_),
+        trees(dim_) {
+    }
+};
+
+
+
+
+
 
 
 typedef Field<2, 1> GF2;

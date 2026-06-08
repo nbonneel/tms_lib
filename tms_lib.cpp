@@ -4,6 +4,8 @@
 #include <limits>
 #include <cstdio>
 #include <cstring>
+#include <random>
+#include <unordered_map>
 
 #if defined(_MSC_VER)
 #include <intrin.h>
@@ -471,6 +473,7 @@ double generalized_l2_discrepancy_squared_exact_runtime(
     return clamp_discrepancy_square(double(d2));
 }
 
+// O(n^2 d)
 double generalized_l2_discrepancy(const double* points,
     int npts,
     int dim,
@@ -1453,4 +1456,495 @@ inline void svg_circle(FILE* f,
         "<circle cx=\"%.3f\" cy=\"%.3f\" r=\"%.3f\" "
         "fill=\"%s\" stroke=\"%s\" stroke-width=\"1\"/>\n",
         cx, cy, r, fill, stroke);
+}
+
+#include <vector>
+#include <algorithm>
+#include <cassert>
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
+
+inline uint64_t ipow_u64_checked(int base, int exp) {
+    assert(base >= 2);
+    assert(exp >= 0);
+
+    uint64_t r = 1;
+
+    for (int i = 0; i < exp; ++i) {
+        assert(r <= UINT64_MAX / uint64_t(base));
+        r *= uint64_t(base);
+    }
+
+    return r;
+}
+
+inline int integer_log_exact_u64(uint64_t n, int base) {
+    assert(n > 0);
+    assert(base >= 2);
+
+    uint64_t v = 1;
+    int m = 0;
+
+    while (v < n) {
+        if (v > UINT64_MAX / uint64_t(base)) {
+            return -1;
+        }
+
+        v *= uint64_t(base);
+        ++m;
+    }
+
+    return v == n ? m : -1;
+}
+
+
+inline uint64_t box_cell_from_double(double x,
+    uint64_t scale) {
+    assert(scale > 0);
+    assert(std::isfinite(x));
+
+    if (x <= 0.0) {
+        return 0;
+    }
+
+    if (x >= 1.0) {
+        return scale - 1;
+    }
+
+    const double y = x * double(scale);
+
+    // For digital points, y is often theoretically an integer.
+    // Due to binary floating-point, it may be represented as n - eps.
+    // In that case, floor(y) would send it to the previous box.
+    const double nearest = std::floor(y + 0.5);
+
+    const double tol =
+        64.0 * std::numeric_limits<double>::epsilon()
+        * std::max(1.0, std::fabs(y));
+
+    uint64_t cell;
+
+    if (std::fabs(y - nearest) <= tol) {
+        cell = uint64_t(nearest);
+    }
+    else {
+        cell = uint64_t(std::floor(y));
+    }
+
+    if (cell >= scale) {
+        cell = scale - 1;
+    }
+
+    return cell;
+}
+
+bool test_t_factor_pointset_real_sorted(const double* points,
+    int npts,
+    int dim,
+    int stride_dim,
+    int base,
+    int t_factor,
+    bool dbg = false) {
+    assert(points != 0);
+    assert(npts > 0);
+    assert(dim > 0);
+    assert(stride_dim >= dim);
+    assert(base >= 2);
+
+    const int m = integer_log_exact_u64(uint64_t(npts), base);
+
+    if (m < 0) {
+        return false;
+    }
+
+    assert(t_factor >= 0);
+    assert(t_factor <= m);
+
+    const int q = m - t_factor;
+
+    const uint64_t expected_count = ipow_u64_checked(base, t_factor);
+    const uint64_t expected_nboxes = ipow_u64_checked(base, q);
+
+    std::vector<uint64_t> codes;
+    codes.resize(npts);
+
+    bool all_ok = true;
+
+    enumerate_compositions(dim, q, [&](const std::vector<int>& k) -> bool {
+        for (int ip = 0; ip < npts; ++ip) {
+            uint64_t code = 0;
+
+            for (int d = 0; d < dim; ++d) {
+                const int kd = k[d];
+
+                uint64_t cell = 0;
+
+                if (kd > 0) {
+                    const double x =
+                        sanitize_unit_coord(points[ip * stride_dim + d]);
+
+                    const uint64_t scale = ipow_u64_checked(base, kd);
+
+                    cell = box_cell_from_double(x, scale);
+
+                    if (cell >= scale) {
+                        cell = scale - 1;
+                    }
+                }
+
+                const uint64_t radix = ipow_u64_checked(base, kd);
+                code = code * radix + cell;
+            }
+
+            codes[ip] = code;
+        }
+
+        std::sort(codes.begin(), codes.end());
+
+        uint64_t n_distinct_boxes = 0;
+        int pos = 0;
+
+        while (pos < npts) {
+            const uint64_t c = codes[pos];
+
+            int next = pos + 1;
+
+            while (next < npts && codes[next] == c) {
+                ++next;
+            }
+
+            const uint64_t count = uint64_t(next - pos);
+
+            if (count != expected_count) {
+                if (dbg) {
+                    std::printf("Fail t=%d: box %llu count=%llu expected=%llu\n",
+                        t_factor,
+                        (unsigned long long)c,
+                        (unsigned long long)count,
+                        (unsigned long long)expected_count);
+
+                    std::printf("composition k = ");
+                    for (int d = 0; d < dim; ++d) {
+                        std::printf("%d ", k[d]);
+                    }
+                    std::printf("\n");
+                }
+
+                all_ok = false;
+                return false;
+            }
+
+            ++n_distinct_boxes;
+            pos = next;
+        }
+
+        if (n_distinct_boxes != expected_nboxes) {
+            if (dbg) {
+                std::printf("Fail t=%d: distinct boxes=%llu expected boxes=%llu\n",
+                    t_factor,
+                    (unsigned long long)n_distinct_boxes,
+                    (unsigned long long)expected_nboxes);
+
+                std::printf("composition k = ");
+                for (int d = 0; d < dim; ++d) {
+                    std::printf("%d ", k[d]);
+                }
+                std::printf("\n");
+            }
+
+            all_ok = false;
+            return false;
+        }
+
+        return true;
+        });
+
+    return all_ok;
+}
+
+
+int t_factor_pointset(const double* points,
+    int npts,
+    int dim,
+    int stride_dim,
+    int base,
+    bool dbg = false) {
+    assert(points != 0);
+    assert(npts > 0);
+    assert(dim > 0);
+    assert(stride_dim >= dim);
+    assert(base >= 2);
+
+    const int m = integer_log_exact_u64(uint64_t(npts), base);
+
+    if (m < 0) {
+        if (dbg) {
+            std::printf("npts=%d is not a power of base=%d\n", npts, base);
+        }
+
+        return -1;
+    }
+
+    for (int t = 0; t <= m; ++t) {
+        if (dbg) {
+            std::printf("testing t=%d\n", t);
+        }
+
+        if (test_t_factor_pointset_real_sorted(points,
+            npts,
+            dim,
+            stride_dim,
+            base,
+            t,
+            dbg)) {
+            return t;
+        }
+    }
+
+    return m;
+}
+
+int t_factor_pointset(const double* points,
+    int npts,
+    int dim,
+    int base,
+    bool dbg) {
+    return t_factor_pointset(points, npts, dim, dim, base, dbg);
+}
+
+
+
+inline void random_permutation(int* p,
+    int n,
+    FastRNG& rng) {
+    for (int i = 0; i < n; ++i) {
+        p[i] = i;
+    }
+
+    for (int i = n - 1; i > 0; --i) {
+        const int j = static_cast<int>(rng.bounded(uint64_t(i + 1)));
+        std::swap(p[i], p[j]);
+    }
+}
+
+inline uint64_t double_coord_to_grid_integer(double x,
+    int base,
+    int m) {
+    const uint64_t scale = ipow_u64_checked(base, m);
+
+    if (x <= 0.0) return 0;
+    if (x >= 1.0) return scale - 1;
+
+    const double y = x * double(scale);
+
+    // Important: use nearest integer, not floor.
+    // The input point is supposed to be exactly on the base^m grid.
+    uint64_t I = uint64_t(std::floor(y + 0.5));
+
+    if (I >= scale) {
+        I = scale - 1;
+    }
+
+    return I;
+}
+
+bool check_owen_tree_1d(const OwenTree1D& tree) {
+    if (tree.base < 2) return false;
+    if (tree.depth < 0) return false;
+
+    uint64_t n_nodes = 1;
+
+    for (int level = 0; level < tree.depth; ++level) {
+        const std::vector<int>& perms = tree.level_perm[level];
+
+        if (perms.size() != std::size_t(n_nodes) * std::size_t(tree.base)) {
+            return false;
+        }
+
+        for (uint64_t node = 0; node < n_nodes; ++node) {
+            std::vector<int> seen(tree.base, 0);
+
+            for (int a = 0; a < tree.base; ++a) {
+                const int b = perms[std::size_t(node) * tree.base + a];
+
+                if (b < 0 || b >= tree.base) {
+                    return false;
+                }
+
+                ++seen[b];
+            }
+
+            for (int b = 0; b < tree.base; ++b) {
+                if (seen[b] != 1) {
+                    return false;
+                }
+            }
+        }
+
+        n_nodes *= uint64_t(tree.base);
+    }
+
+    return true;
+}
+
+bool check_owen_tree_nd(const OwenTreeND& tree) {
+    if (tree.dim <= 0) return false;
+    if (tree.base < 2) return false;
+
+    if (tree.trees.size() != std::size_t(tree.dim)) {
+        return false;
+    }
+
+    for (int d = 0; d < tree.dim; ++d) {
+        if (tree.trees[d].base != tree.base) return false;
+
+        if (!check_owen_tree_1d(tree.trees[d])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+OwenTree1D make_random_owen_tree_1d(int base,
+    int depth,
+    FastRNG& rng) {
+    assert(base >= 2);
+    assert(depth >= 0);
+
+    OwenTree1D tree(base, depth);
+
+    long long n_nodes = 1;
+
+    for (int level = 0; level < depth; ++level) {
+        tree.level_perm[level].resize(
+            static_cast<std::size_t>(n_nodes) * static_cast<std::size_t>(base)
+        );
+
+        for (long long node = 0; node < n_nodes; ++node) {
+            int* perm =
+                &tree.level_perm[level][static_cast<std::size_t>(node) * base];
+
+            random_permutation(perm, base, rng);
+        }
+
+        n_nodes *= base;
+    }
+
+    return tree;
+}
+
+OwenTreeND make_random_owen_tree_nd(int dim,
+    int base,
+    int depth,
+    uint64_t seed) {
+    assert(dim > 0);
+    assert(base >= 2);
+    assert(depth >= 0);
+
+    FastRNG rng(seed);
+
+    OwenTreeND tree(dim, base, depth);
+
+    for (int d = 0; d < dim; ++d) {
+        tree.trees[d] = make_random_owen_tree_1d(base, depth, rng);
+    }
+
+    return tree;
+}
+
+
+double apply_owen_1d_real(double x,
+    const OwenTree1D& tree,
+    int m) {
+    assert(tree.base >= 2);
+    assert(m >= 0);
+    assert(check_owen_tree_1d(tree));
+
+    const int base = tree.base;
+    const uint64_t scale = ipow_u64_checked(base, m);
+
+    uint64_t I = double_coord_to_grid_integer(x, base, m);
+
+    std::vector<int> digits(m, 0);
+
+    // Extract m base-b digits, most significant first.
+    for (int j = m - 1; j >= 0; --j) {
+        digits[j] = int(I % uint64_t(base));
+        I /= uint64_t(base);
+    }
+
+    uint64_t prefix = 0;
+    uint64_t J = 0;
+
+    const int active_depth =
+        tree.depth < m ? tree.depth : m;
+
+    for (int level = 0; level < m; ++level) {
+        const int digit = digits[level];
+        int new_digit = digit;
+
+        if (level < active_depth) {
+            const std::vector<int>& perms = tree.level_perm[level];
+
+            new_digit =
+                perms[std::size_t(prefix) * std::size_t(base)
+                + std::size_t(digit)];
+        }
+
+        J = J * uint64_t(base) + uint64_t(new_digit);
+
+        // Important: prefix is the original prefix, as in your Mathematica code.
+        prefix = prefix * uint64_t(base) + uint64_t(digit);
+    }
+
+    return double(J) / double(scale);
+}
+
+
+
+void apply_owen_permutation_real(const double* points_in,
+    double* points_out,
+    int npts,
+    int dim,
+    int stride_in,
+    int stride_out,
+    int m,
+    const OwenTreeND& tree) {
+    assert(points_in != 0);
+    assert(points_out != 0);
+    assert(npts >= 0);
+    assert(dim > 0);
+    assert(stride_in >= dim);
+    assert(stride_out >= dim);
+    assert(tree.dim == dim);
+    assert(check_owen_tree_nd(tree));
+
+    for (int i = 0; i < npts; ++i) {
+        for (int d = 0; d < dim; ++d) {
+            const double x = points_in[i * stride_in + d];
+
+            points_out[i * stride_out + d] =
+                apply_owen_1d_real(x, tree.trees[d], m);
+        }
+    }
+}
+
+
+
+void apply_owen_permutation_real(const double* points_in,
+    double* points_out,
+    int npts,
+    int dim,
+    int m,
+    const OwenTreeND& tree) {
+    apply_owen_permutation_real(points_in,
+        points_out,
+        npts,
+        dim,
+        dim,
+        dim,
+        m,
+        tree);
 }

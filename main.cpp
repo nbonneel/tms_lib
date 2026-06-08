@@ -126,7 +126,7 @@ void test_rank() {
 	int row_choice[3] = { 4,3,2 };
 
 	Matrix<F> combination(9, 9);
-	combine_matrices(&matrices_to_combine[0], row_choice, 3, 9, combination.view());
+	combine_matrices(&matrices_to_combine[0], row_choice, matrices_to_combine.size(), combination.cols(), combination.view());
 
 	std::cout << "combination = " << std::endl << combination << std::endl;
 
@@ -149,7 +149,7 @@ void test_t_values() {
 	typedef F::T T;
 
 	// 3 matrices from Victor. t={0, 1, 1, 1, 1, 2, 3, 2}
-	/*int matrices[3][8][8] = {
+	/*T matrices[3][8][8] = {
 		{{1, 1, 2, 2, 3, 1, 3, 2}, {0, 2, 3, 4, 1, 3, 2, 2}, {0, 0, 2, 0, 0, 4, 1, 4}, {0, 0, 0, 1, 3, 4, 1, 1},
 		 {0, 0, 0, 0, 3, 2, 4, 0}, {0, 0, 0, 0, 0, 3, 0, 1}, {0, 0, 0, 0, 0, 0, 1, 1}, {0, 0, 0, 0, 0, 0, 0, 2}},
 		{{4, 3, 2, 4, 1, 2, 0, 4}, {0, 4, 2, 1, 2, 1, 3, 1}, {0, 0, 1, 2, 4, 3, 3, 0}, {0, 0, 0, 4, 1, 1, 2, 4},
@@ -186,11 +186,11 @@ void test_t_values() {
 	sequence[3] = S4.view();
 
 	auto time_point1 = std::chrono::high_resolution_clock::now();
-	std::vector<int> all_t = t_values_naive(&sequence[0], 4);
+	std::vector<int> all_t = t_values_naive(&sequence[0], sequence.size());
 	auto time_point2 = std::chrono::high_resolution_clock::now();
 
 
-	std::vector<int> all_t_v2 = t_values(&sequence[0], 4);
+	std::vector<int> all_t_v2 = t_values(&sequence[0], sequence.size());
 	auto time_point3 = std::chrono::high_resolution_clock::now();
 
 	std::cout << std::chrono::duration_cast<std::chrono::milliseconds>((time_point2 - time_point1)).count() << " ms, t (naive) : " << std::endl;
@@ -254,7 +254,7 @@ void test_draw_points() {
 	std::vector<MatrixView<F> > m;
 	m.push_back(S1.view());
 	m.push_back(S2.view());
-	std::vector<int> vals = t_values(&m[0], 2, 5);
+	
 	draw_2D_points(S1.view(), S2.view(), std::pow(std::pow((int)F::p, (int)F::r), 7), "points.svg");
 
 	S1.save_svg("matrix1.svg");
@@ -319,14 +319,60 @@ void test_discrepancy() {
 	double gl2disc = generalized_l2_discrepancy(&pts[0], n_pts, matrices_view.size());
 	std::cout << "n_pts: " << n_pts << ", generalized l2 discrepancy=" << gl2disc << std::endl;
 
-	plot_discrepancy_svg(&matrices_view[0], matrices_view.size(), 1, 7, 1 / 4., DISCREPANCY_GENERALIZED_L2, "plot_disc.svg");
+	plot_discrepancy_svg(&matrices_view[0], matrices_view.size(), 1, 6, 1 / 4., DISCREPANCY_GENERALIZED_L2, "plot_disc.svg");
 }
 
+
+void test_owen() {
+
+
+	typedef GF5 F;
+	typedef F::T T;
+
+	const int m = 7;
+	const int dim = 3;
+	const int base = std::pow((double)F::p, F::r);
+	const int n_pts = std::pow(base, m);
+
+	// 3 matrices from Victor. t={0, 1, 1, 1, 1, 2, 3, 2}
+	T matrices[3][8][8] = {
+		{{1, 1, 2, 2, 3, 1, 3, 2}, {0, 2, 3, 4, 1, 3, 2, 2}, {0, 0, 2, 0, 0, 4, 1, 4}, {0, 0, 0, 1, 3, 4, 1, 1},
+		 {0, 0, 0, 0, 3, 2, 4, 0}, {0, 0, 0, 0, 0, 3, 0, 1}, {0, 0, 0, 0, 0, 0, 1, 1}, {0, 0, 0, 0, 0, 0, 0, 2}},
+		{{4, 3, 2, 4, 1, 2, 0, 4}, {0, 4, 2, 1, 2, 1, 3, 1}, {0, 0, 1, 2, 4, 3, 3, 0}, {0, 0, 0, 4, 1, 1, 2, 4},
+		 {0, 0, 0, 0, 1, 0, 3, 0}, {0, 0, 0, 0, 0, 1, 4, 0}, {0, 0, 0, 0, 0, 0, 4, 1}, {0, 0, 0, 0, 0, 0, 0, 4}},
+		{{4, 3, 4, 4, 4, 2, 1, 4}, {0, 3, 3, 2, 1, 4, 2, 3}, {0, 0, 1, 4, 3, 2, 1, 2}, {0, 0, 0, 3, 3, 4, 1, 0},
+		 {0, 0, 0, 0, 3, 4, 3, 1}, {0, 0, 0, 0, 0, 2, 0, 1}, {0, 0, 0, 0, 0, 0, 2, 0}, {0, 0, 0, 0, 0, 0, 0, 1}} };
+
+	std::vector<MatrixView<F> > sequence(3);
+	sequence[0] = MatrixView<F>(&matrices[0][0][0], 8, 8);
+	sequence[1] = MatrixView<F>(&matrices[1][0][0], 8, 8);
+	sequence[2] = MatrixView<F>(&matrices[2][0][0], 8, 8);
+
+	std::vector<int> t_vals = t_values(&sequence[0], dim);
+
+	std::vector<double> pts = get_points<F>(&sequence[0], dim, n_pts);
+
+	OwenTreeND tree = make_random_owen_tree_nd(dim, base, m+3, 12345);
+	std::vector<double> scrambled(n_pts * dim);
+	apply_owen_permutation_real(&pts[0], &scrambled[0], n_pts, dim, m+3, tree);
+
+	int t_before = t_factor_pointset(&pts[0], n_pts, dim, base);
+	int t_after = t_factor_pointset(&scrambled[0], n_pts, dim, base);
+	int t_matrix = t_vals[m-1];
+	std::cout << "t value according to matrix : " << t_matrix << std::endl;
+	std::cout << "t value according to point set : " << t_before << std::endl;
+	std::cout << "t value according to scrambled point set : " << t_after << std::endl;
+	double gl2disc_before = generalized_l2_discrepancy(&pts[0], n_pts, dim);
+	std::cout << "generalized l2 discrepancy before scrambling: " << gl2disc_before << std::endl;
+	double gl2disc_after = generalized_l2_discrepancy(&scrambled[0], n_pts, dim);
+	std::cout << "generalized l2 discrepancy after scrambling: " << gl2disc_after << std::endl;
+
+}
 
 
 int main() {
 
-	test_arithmetic();
+	/*test_arithmetic();
 
 	testPascal();
 
@@ -344,7 +390,9 @@ int main() {
 
 	test_draw_points();	
 
-	test_discrepancy();	
+	test_discrepancy();	*/
+
+	test_owen();
 
 	return 0;
 };
