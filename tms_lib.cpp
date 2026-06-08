@@ -662,6 +662,227 @@ double star_discrepancy_exact_bb(const double* points,
 
 
 
+struct StarDiscrepancy4D_BB {
+    int npts;
+    int words;
+    double invN;
+
+    std::vector<double> P;
+    std::vector<double> coords[4];
+
+    std::vector<uint64_t> less_masks[4];
+    std::vector<uint64_t> leq_masks[4];
+    std::vector<uint64_t> all_ones;
+    std::vector<uint64_t> tmp;
+
+    double best;
+
+    StarDiscrepancy4D_BB(const double* points, int npts_)
+        : npts(npts_),
+        words((npts_ + 63) >> 6),
+        invN(1.0 / double(npts_)),
+        best(0.0) {
+        P.resize(npts * 4);
+
+        for (int i = 0; i < npts; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                P[4 * i + j] = sanitize_unit_coord(points[4 * i + j]);
+            }
+        }
+
+        build_coords();
+        build_masks();
+
+        tmp.resize(words);
+    }
+
+    void build_coords() {
+        for (int j = 0; j < 4; ++j) {
+            coords[j].reserve(npts + 1);
+
+            for (int i = 0; i < npts; ++i) {
+                coords[j].push_back(P[4 * i + j]);
+            }
+
+            coords[j].push_back(1.0);
+
+            std::sort(coords[j].begin(), coords[j].end());
+            coords[j].erase(
+                std::unique(coords[j].begin(), coords[j].end()),
+                coords[j].end()
+            );
+        }
+    }
+
+    void build_masks() {
+        all_ones.assign(words, ~uint64_t(0));
+
+        const int extra_bits = words * 64 - npts;
+        if (extra_bits > 0) {
+            all_ones[words - 1] >>= extra_bits;
+        }
+
+        for (int d = 0; d < 4; ++d) {
+            const int nd = static_cast<int>(coords[d].size());
+
+            less_masks[d].assign(nd * words, uint64_t(0));
+            leq_masks[d].assign(nd * words, uint64_t(0));
+
+            for (int c = 0; c < nd; ++c) {
+                const double x = coords[d][c];
+
+                uint64_t* less = &less_masks[d][c * words];
+                uint64_t* leq = &leq_masks[d][c * words];
+
+                for (int i = 0; i < npts; ++i) {
+                    const double p = P[4 * i + d];
+                    const int w = i >> 6;
+                    const uint64_t bit = uint64_t(1) << (i & 63);
+
+                    if (p < x)  less[w] |= bit;
+                    if (p <= x) leq[w] |= bit;
+                }
+            }
+        }
+    }
+
+    int count4(const std::vector<uint64_t>* masks,
+        int a, int b, int c, int d) {
+        const uint64_t* m0 = &masks[0][a * words];
+        const uint64_t* m1 = &masks[1][b * words];
+        const uint64_t* m2 = &masks[2][c * words];
+        const uint64_t* m3 = &masks[3][d * words];
+
+        int count = 0;
+
+        for (int w = 0; w < words; ++w) {
+            const uint64_t x = m0[w] & m1[w] & m2[w] & m3[w];
+            count += popcount_u64(x);
+        }
+
+        return count;
+    }
+
+    double volume4(int a, int b, int c, int d) const {
+        return coords[0][a] * coords[1][b] * coords[2][c] * coords[3][d];
+    }
+
+    void eval_box(int a, int b, int c, int d) {
+        const double vol = volume4(a, b, c, d);
+
+        const int cless = count4(less_masks, a, b, c, d);
+        const int cleq = count4(leq_masks, a, b, c, d);
+
+        const double dplus = double(cleq) * invN - vol;
+        const double dminus = vol - double(cless) * invN;
+
+        if (dplus > best)  best = dplus;
+        if (dminus > best) best = dminus;
+    }
+
+    void recurse(int a0, int a1,
+        int b0, int b1,
+        int c0, int c1,
+        int d0, int d1) {
+        const double vol_min = volume4(a0, b0, c0, d0);
+        const double vol_max = volume4(a1, b1, c1, d1);
+
+        const int cleq_max =
+            count4(leq_masks, a1, b1, c1, d1);
+
+        const int cless_min =
+            count4(less_masks, a0, b0, c0, d0);
+
+        const double ub_plus =
+            double(cleq_max) * invN - vol_min;
+
+        const double ub_minus =
+            vol_max - double(cless_min) * invN;
+
+        const double ub = ub_plus > ub_minus ? ub_plus : ub_minus;
+
+        if (ub <= best + 1e-15) {
+            return;
+        }
+
+        const int ra = a1 - a0;
+        const int rb = b1 - b0;
+        const int rc = c1 - c0;
+        const int rd = d1 - d0;
+
+        if ((ra | rb | rc | rd) == 0) {
+            eval_box(a0, b0, c0, d0);
+            return;
+        }
+
+        // Split along the largest remaining interval.
+        if (ra >= rb && ra >= rc && ra >= rd) {
+            const int mid = (a0 + a1) >> 1;
+            recurse(mid + 1, a1, b0, b1, c0, c1, d0, d1);
+            recurse(a0, mid, b0, b1, c0, c1, d0, d1);
+        }
+        else if (rb >= rc && rb >= rd) {
+            const int mid = (b0 + b1) >> 1;
+            recurse(a0, a1, mid + 1, b1, c0, c1, d0, d1);
+            recurse(a0, a1, b0, mid, c0, c1, d0, d1);
+        }
+        else if (rc >= rd) {
+            const int mid = (c0 + c1) >> 1;
+            recurse(a0, a1, b0, b1, mid + 1, c1, d0, d1);
+            recurse(a0, a1, b0, b1, c0, mid, d0, d1);
+        }
+        else {
+            const int mid = (d0 + d1) >> 1;
+            recurse(a0, a1, b0, b1, c0, c1, mid + 1, d1);
+            recurse(a0, a1, b0, b1, c0, c1, d0, mid);
+        }
+    }
+
+    void initialize_best() {
+        const int a = static_cast<int>(coords[0].size()) - 1;
+        const int b = static_cast<int>(coords[1].size()) - 1;
+        const int c = static_cast<int>(coords[2].size()) - 1;
+        const int d = static_cast<int>(coords[3].size()) - 1;
+
+        eval_box(a, b, c, d);
+
+        // Cheap warm start: evaluate boxes anchored at actual points.
+        for (int i = 0; i < npts; ++i) {
+            int idx[4];
+
+            for (int j = 0; j < 4; ++j) {
+                const double v = P[4 * i + j];
+
+                std::vector<double>::const_iterator it =
+                    std::lower_bound(coords[j].begin(), coords[j].end(), v);
+
+                idx[j] = static_cast<int>(it - coords[j].begin());
+            }
+
+            eval_box(idx[0], idx[1], idx[2], idx[3]);
+        }
+    }
+
+    double compute() {
+        initialize_best();
+
+        recurse(
+            0, static_cast<int>(coords[0].size()) - 1,
+            0, static_cast<int>(coords[1].size()) - 1,
+            0, static_cast<int>(coords[2].size()) - 1,
+            0, static_cast<int>(coords[3].size()) - 1
+        );
+
+        return best;
+    }
+};
+
+double star_discrepancy_4d_exact_bb_fast(const double* points, int npts) {
+    StarDiscrepancy4D_BB solver(points, npts);
+    return solver.compute();
+}
+
+
 struct StarPoint2D {
     double x;
     double y;
@@ -810,6 +1031,10 @@ double star_discrepancy(const double* points,
     int dim) {
     if (dim == 2) {
         return star_discrepancy_2d_exact_sweep(points, npts);
+    }
+
+    if (dim == 4) {
+        return star_discrepancy_4d_exact_bb_fast(points, npts);
     }
 
     return star_discrepancy_exact_bb(points, npts, dim);

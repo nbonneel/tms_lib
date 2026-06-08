@@ -319,7 +319,7 @@ void test_discrepancy() {
 	double gl2disc = generalized_l2_discrepancy(&pts[0], n_pts, matrices_view.size());
 	std::cout << "n_pts: " << n_pts << ", generalized l2 discrepancy=" << gl2disc << std::endl;
 
-	plot_discrepancy_svg(&matrices_view[0], matrices_view.size(), 1, 4, 1 / 4., DISCREPANCY_STAR, "plot_disc.svg");
+	plot_discrepancy_svg(&matrices_view[0], matrices_view.size(), 1, 5, 1 / 4., DISCREPANCY_STAR, "plot_disc.svg");
 }
 
 
