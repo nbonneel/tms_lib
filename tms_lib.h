@@ -15,7 +15,7 @@ extern char div_non_prime[MAX_GF + 1][MAX_GF][MAX_GF];
 extern char neg_non_prime[MAX_GF + 1][MAX_GF];
 extern char invGalois[MAX_GF + 1][MAX_GF];
 
-double generalized_l2_discrepancy(const double* points, int npts, int dim);
+double generalized_l2_discrepancy(const double* points, int npts, int dim, int block_size = 64);
 double star_discrepancy(const double* points, int npts, int dim);
 void print_point_range(const double* points, int npts, int dim);
 
@@ -2019,7 +2019,26 @@ struct SobolMatrixView : public MatrixView<F> {
 
 };
 
+enum MatrixRangeOrder {
+    MatrixRangeSequential,
+    MatrixRangeRandomized
+};
 
+inline uint64_t gcd_u64(uint64_t a, uint64_t b) {
+    while (b != 0) {
+        const uint64_t r = a % b;
+        a = b;
+        b = r;
+    }
+    return a;
+}
+
+inline uint64_t splitmix64_next(uint64_t& x) {
+    uint64_t z = (x += 0x9E3779B97F4A7C15ULL);
+    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+    return z ^ (z >> 31);
+}
 
 template<class F>
 struct MatrixRange {
@@ -2029,72 +2048,144 @@ struct MatrixRange {
     Matrix<F> maxM;
     Matrix<F> curM;
 
+    std::vector<int> free_index;
+    std::vector<int> free_min;
+    std::vector<int> free_extent;
+
+    uint64_t total;
+    uint64_t start_rank;
+    uint64_t stride;
+
+    MatrixRangeOrder order;
+
     MatrixRange(MatrixView<F> min_,
-        MatrixView<F> max_)
+        MatrixView<F> max_,
+        MatrixRangeOrder order_ = MatrixRangeSequential,
+        uint64_t seed = 0x123456789ABCDEF0ULL)
         : minM(min_),
         maxM(max_),
-        curM(min_) {
+        curM(min_),
+        total(1),
+        start_rank(0),
+        stride(1),
+        order(order_) {
         assert(min_.m == max_.m);
         assert(min_.n == max_.n);
-    }
 
-    bool increment() {
-        const int N = curM.m * curM.n;
+        enum { Q = GFCardinality<F::p, F::r>::value };
 
-        for (int idx = N - 1; idx >= 0; --idx) {
-            const int curv = gf_to_raw_index<F>(curM[idx]);
-            const int minv = gf_to_raw_index<F>(minM[idx]);
-            const int maxv = gf_to_raw_index<F>(maxM[idx]);
+        const int N = minM.m * minM.n;
 
-            if (curv < maxv) {
-                curM[idx] = T{ curv + 1 };
+        for (int idx = 0; idx < N; ++idx) {
+            const int a = gf_to_raw_index<F>(minM[idx]);
+            const int b = gf_to_raw_index<F>(maxM[idx]);
 
-                for (int j = idx + 1; j < N; ++j) {
-                    const int resetv = gf_to_raw_index<F>(minM[j]);
-                    curM[j] = T{ resetv };
-                }
+            assert(0 <= a && a < Q);
+            assert(0 <= b && b < Q);
+            assert(a <= b);
 
-                return true;
+            const int extent = b - a + 1;
+
+            if (extent > 1) {
+                free_index.push_back(idx);
+                free_min.push_back(a);
+                free_extent.push_back(extent);
+
+                assert(total <=
+                    std::numeric_limits<uint64_t>::max() / uint64_t(extent));
+
+                total *= uint64_t(extent);
             }
         }
 
-        return false;
+        if (order == MatrixRangeRandomized && total > 1) {
+            uint64_t rng = seed;
+
+            start_rank = splitmix64_next(rng) % total;
+
+            // Pick a stride coprime with total.
+            do {
+                stride = splitmix64_next(rng) % total;
+            } while (stride == 0 || gcd_u64(stride, total) != 1);
+        }
+        else {
+            start_rank = 0;
+            stride = 1;
+        }
+    }
+
+    void decode_rank(uint64_t rank) {
+        // Reset fixed and constrained entries.
+        // This also handles entries with min == max.
+        const int N = curM.m * curM.n;
+        for (int i = 0; i < N; ++i) {
+            curM[i] = minM[i];
+        }
+
+        // Mixed-radix decoding.
+        // free_index[0] is the fastest-changing coordinate.
+        for (size_t k = 0; k < free_index.size(); ++k) {
+            const uint64_t base = uint64_t(free_extent[k]);
+            const int digit = int(rank % base);
+            rank /= base;
+
+            const int raw_value = free_min[k] + digit;
+            curM[free_index[k]] = T{ raw_value };
+        }
     }
 
     struct iterator {
         MatrixRange<F>* range;
-        bool at_end;
+        uint64_t step;
+        uint64_t rank;
 
-        iterator(MatrixRange<F>* range_, bool at_end_)
-            : range(range_), at_end(at_end_) {
+        iterator(MatrixRange<F>* range_,
+            uint64_t step_,
+            uint64_t rank_)
+            : range(range_),
+            step(step_),
+            rank(rank_) {
         }
 
         Matrix<F>& operator*() {
+            range->decode_rank(rank);
             return range->curM;
         }
 
         Matrix<F>* operator->() {
+            range->decode_rank(rank);
             return &range->curM;
         }
 
         iterator& operator++() {
-            if (!range->increment()) {
-                at_end = true;
+            ++step;
+
+            if (range->total > 1) {
+                // rank = (rank + stride) % total, without overflow.
+                const uint64_t remaining = range->total - rank;
+
+                if (range->stride >= remaining) {
+                    rank = range->stride - remaining;
+                }
+                else {
+                    rank += range->stride;
+                }
             }
+
             return *this;
         }
 
         bool operator!=(const iterator& other) const {
-            return at_end != other.at_end;
+            return step != other.step;
         }
     };
 
     iterator begin() {
-        return iterator(this, false);
+        return iterator(this, 0, start_rank);
     }
 
     iterator end() {
-        return iterator(this, true);
+        return iterator(this, total, 0);
     }
 };
 
@@ -2441,6 +2532,152 @@ bool plot_discrepancy_svg(const MatrixView<F>* all_matrices,
 }
 
 
+
+template<int DIM>
+inline double gl2_kernel_soa_dim(const double* Y,
+    int npts,
+    int i,
+    int k) {
+    // Y[d * npts + i] = 2 - x_{i,d}
+    // Kernel = prod_d min(Y_i,d, Y_k,d)
+
+    double prod = 1.0;
+
+    for (int d = 0; d < DIM; ++d) {
+        const double yi = Y[d * npts + i];
+        const double yk = Y[d * npts + k];
+        prod *= yi < yk ? yi : yk;
+    }
+
+    return prod;
+}
+
+extern inline double sanitize_unit_coord(double x);
+
+template<int DIM>
+double generalized_l2_discrepancy_squared_exact_dim(
+    const double* points,
+    int npts,
+    int block_size = 64
+) {
+    assert(points != 0);
+    assert(npts > 0);
+    assert(DIM > 0);
+    assert(block_size > 0);
+
+    const double invN = 1.0 / double(npts);
+
+    // Store Y in structure-of-arrays layout:
+    // Y[d * npts + i] = 2 - points[i * DIM + d]
+    std::vector<double> Y(size_t(DIM) * size_t(npts));
+
+#pragma omp parallel for
+    for (int i = 0; i < npts; ++i) {
+        for (int d = 0; d < DIM; ++d) {
+            const double x = points[i * DIM + d];
+            Y[d * npts + i] = 2.0 - x;
+        }
+    }
+
+    // term0 = (4/3)^DIM
+    long double term0 = 1.0L;
+    for (int d = 0; d < DIM; ++d) {
+        term0 *= 4.0L / 3.0L;
+    }
+
+    // term1 = sum_i prod_d (3 - x_i,d^2) / 2
+    long double term1_sum = 0.0L;
+
+#pragma omp parallel for reduction(+:term1_sum)
+    for (int i = 0; i < npts; ++i) {
+        long double prod = 1.0L;
+
+        for (int d = 0; d < DIM; ++d) {
+            const double y = Y[d * npts + i];
+            const double x = 2.0 - y;
+            prod *= 0.5L * (3.0L - double(x) * double(x));
+        }
+
+        term1_sum += prod;
+    }
+
+    // Diagonal part of term2:
+    // sum_i prod_d (2 - x_i,d)
+    long double term2_diag = 0.0L;
+
+#pragma omp parallel for reduction(+:term2_diag)
+    for (int i = 0; i < npts; ++i) {
+        long double prod = 1.0L;
+
+        for (int d = 0; d < DIM; ++d) {
+            prod *= Y[d * npts + i];
+        }
+
+        term2_diag += prod;
+    }
+
+    // Upper triangular part of term2.
+    const int nb = (npts + block_size - 1) / block_size;
+
+    long double term2_upper = 0.0L;
+
+#pragma omp parallel for schedule(dynamic, 1) reduction(+:term2_upper)
+    for (int bi = 0; bi < nb; ++bi) {
+        const int i0 = bi * block_size;
+        const int i1 = std::min(i0 + block_size, npts);
+
+        long double local = 0.0L;
+
+        for (int bj = bi; bj < nb; ++bj) {
+            const int k0 = bj * block_size;
+            const int k1 = std::min(k0 + block_size, npts);
+
+            if (bi == bj) {
+                // Same block: only i < k.
+                for (int i = i0; i < i1; ++i) {
+                    for (int k = i + 1; k < i1; ++k) {
+                        local += gl2_kernel_soa_dim<DIM>(Y.data(), npts, i, k);
+                    }
+                }
+            }
+            else {
+                // Different blocks: all pairs are upper-triangular.
+                for (int i = i0; i < i1; ++i) {
+                    for (int k = k0; k < k1; ++k) {
+                        local += gl2_kernel_soa_dim<DIM>(Y.data(), npts, i, k);
+                    }
+                }
+            }
+        }
+
+        term2_upper += local;
+    }
+
+    const double term2_sum =
+        term2_diag + 2.0L * term2_upper;
+
+    const double d2 =
+        term0
+        - 2.0L * invN * term1_sum
+        + double(invN) * double(invN) * term2_sum;
+
+    return (d2 < 0.0 && d2 > -1e-12) ? 0.0 : d2;
+}
+
+
+
+template<int DIM>
+double generalized_l2_discrepancy_compile_time_dimension(const double* points,
+    int npts,
+    int block_size = 64) {
+    return std::sqrt(
+        generalized_l2_discrepancy_squared_exact_dim<DIM>(
+            points,
+            npts,
+            block_size
+        )
+    );
+}
 
 
 typedef Field<2, 1> GF2;

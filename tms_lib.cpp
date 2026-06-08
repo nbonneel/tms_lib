@@ -331,68 +331,25 @@ inline double clamp_discrepancy_square(double x) {
     return x < 0.0 && x > -1e-12 ? 0.0 : x;
 }
 
-double generalized_l2_discrepancy_squared(const double* points,
+
+
+inline double gl2_kernel_soa_runtime(const double* Y,
     int npts,
-    int dim) {
-    assert(points != 0);
-    assert(npts > 0);
-    assert(dim > 0);
+    int dim,
+    int i,
+    int k) {
+    double prod = 1.0;
 
-    const double invN = 1.0 / double(npts);
-
-    double term0 = 1.0;
-    for (int j = 0; j < dim; ++j) {
-        term0 *= 4.0 / 3.0;
+    for (int d = 0; d < dim; ++d) {
+        const double yi = Y[d * npts + i];
+        const double yk = Y[d * npts + k];
+        prod *= yi < yk ? yi : yk;
     }
 
-    double term1_sum = 0.0;
-
-    for (int i = 0; i < npts; ++i) {
-        double prod = 1.0;
-
-        for (int j = 0; j < dim; ++j) {
-            const double z = points[i * dim + j];
-            prod *= (3.0 - z * z) * 0.5;
-        }
-
-        term1_sum += prod;
-    }
-
-    double term2_sum = 0.0;
-
-    for (int i = 0; i < npts; ++i) {
-        const double* pi = points + i * dim;
-
-        for (int k = 0; k < npts; ++k) {
-            const double* pk = points + k * dim;
-
-            double prod = 1.0;
-
-            for (int j = 0; j < dim; ++j) {
-                const double m = pi[j] > pk[j] ? pi[j] : pk[j];
-                prod *= 2.0 - m;
-            }
-
-            term2_sum += prod;
-        }
-    }
-
-    const double d2 =
-        term0
-        - 2.0 * invN * term1_sum
-        + invN * invN * term2_sum;
-
-    return clamp_discrepancy_square(d2);
+    return prod;
 }
 
-double generalized_l2_discrepancy(const double* points,
-    int npts,
-    int dim) {
-    const double d2 =
-        generalized_l2_discrepancy_squared(points, npts, dim);
 
-    return std::sqrt(d2);
-}
 
 inline double sanitize_unit_coord(double x) {
     assert(std::isfinite(x));
@@ -408,6 +365,125 @@ inline double sanitize_unit_coord(double x) {
     return x;
 }
 
+
+double generalized_l2_discrepancy_squared_exact_runtime(
+    const double* points,
+    int npts,
+    int dim,
+    int block_size = 64
+) {
+    assert(points != 0);
+    assert(npts > 0);
+    assert(dim > 0);
+    assert(block_size > 0);
+
+    const double invN = 1.0 / double(npts);
+
+    std::vector<double> Y(size_t(dim) * size_t(npts));
+
+#pragma omp parallel for
+    for (int i = 0; i < npts; ++i) {
+        for (int d = 0; d < dim; ++d) {
+            const double x = points[i * dim + d];
+            Y[d * npts + i] = 2.0 - x;
+        }
+    }
+
+    long double term0 = 1.0L;
+    for (int d = 0; d < dim; ++d) {
+        term0 *= 4.0L / 3.0L;
+    }
+
+    long double term1_sum = 0.0L;
+
+#pragma omp parallel for reduction(+:term1_sum)
+    for (int i = 0; i < npts; ++i) {
+        long double prod = 1.0L;
+
+        for (int d = 0; d < dim; ++d) {
+            const double y = Y[d * npts + i];
+            const double x = 2.0 - y;
+            prod *= 0.5L * (3.0L - long double(x) * long double(x));
+        }
+
+        term1_sum += prod;
+    }
+
+    long double term2_diag = 0.0L;
+
+#pragma omp parallel for reduction(+:term2_diag)
+    for (int i = 0; i < npts; ++i) {
+        long double prod = 1.0L;
+
+        for (int d = 0; d < dim; ++d) {
+            prod *= Y[d * npts + i];
+        }
+
+        term2_diag += prod;
+    }
+
+    const int nb = (npts + block_size - 1) / block_size;
+
+    long double term2_upper = 0.0L;
+
+#pragma omp parallel for schedule(dynamic, 1) reduction(+:term2_upper)
+    for (int bi = 0; bi < nb; ++bi) {
+        const int i0 = bi * block_size;
+        const int i1 = std::min(i0 + block_size, npts);
+
+        long double local = 0.0L;
+
+        for (int bj = bi; bj < nb; ++bj) {
+            const int k0 = bj * block_size;
+            const int k1 = std::min(k0 + block_size, npts);
+
+            if (bi == bj) {
+                for (int i = i0; i < i1; ++i) {
+                    for (int k = i + 1; k < i1; ++k) {
+                        local += gl2_kernel_soa_runtime(
+                            Y.data(), npts, dim, i, k
+                        );
+                    }
+                }
+            }
+            else {
+                for (int i = i0; i < i1; ++i) {
+                    for (int k = k0; k < k1; ++k) {
+                        local += gl2_kernel_soa_runtime(
+                            Y.data(), npts, dim, i, k
+                        );
+                    }
+                }
+            }
+        }
+
+        term2_upper += local;
+    }
+
+    const long double term2_sum =
+        term2_diag + 2.0L * term2_upper;
+
+    const long double d2 =
+        term0
+        - 2.0L * invN * term1_sum
+        + long double(invN) * long double(invN) * term2_sum;
+
+    return clamp_discrepancy_square(double(d2));
+}
+
+double generalized_l2_discrepancy(const double* points,
+    int npts,
+    int dim,
+    int block_size) {
+    return std::sqrt(
+        generalized_l2_discrepancy_squared_exact_runtime(
+            points,
+            npts,
+            dim,
+            block_size
+        )
+    );
+}
 
 struct StarDiscrepancyBB {
     const double* points;
@@ -694,7 +770,29 @@ struct StarDiscrepancy4D_BB {
         build_masks();
 
         tmp.resize(words);
+
+        count_cache_leq.resize(COUNT_CACHE_SIZE);
+        count_cache_less.resize(COUNT_CACHE_SIZE);
+
+        for (int i = 0; i < COUNT_CACHE_SIZE; ++i) {
+            count_cache_leq[i].key = ~0ULL;
+            count_cache_leq[i].value = 0;
+
+            count_cache_less[i].key = ~0ULL;
+            count_cache_less[i].value = 0;
+        }
     }
+
+    struct CountCacheEntry {
+        unsigned long long key;
+        int value;
+    };
+
+    static const int COUNT_CACHE_BITS = 16;
+    static const int COUNT_CACHE_SIZE = 1 << COUNT_CACHE_BITS;
+
+    std::vector<CountCacheEntry> count_cache_leq;
+    std::vector<CountCacheEntry> count_cache_less;
 
     void build_coords() {
         for (int j = 0; j < 4; ++j) {
@@ -746,6 +844,39 @@ struct StarDiscrepancy4D_BB {
         }
     }
 
+    unsigned long long pack_key4(int a, int b, int c, int d) const {
+        // Works if each coordinate index is < 65536.
+        // For 1400 points, this is fine.
+        return
+            (unsigned long long)(unsigned int)a |
+            ((unsigned long long)(unsigned int)b << 16) |
+            ((unsigned long long)(unsigned int)c << 32) |
+            ((unsigned long long)(unsigned int)d << 48);
+    }
+
+    int count4_cached(std::vector<uint64_t>* masks,
+        std::vector<CountCacheEntry>& cache,
+        int a, int b, int c, int d) {
+        const unsigned long long key = pack_key4(a, b, c, d);
+
+        unsigned int h = static_cast<unsigned int>(key ^ (key >> 32));
+        h *= 2654435761u;
+        h &= COUNT_CACHE_SIZE - 1;
+
+        CountCacheEntry& e = cache[h];
+
+        if (e.key == key) {
+            return e.value;
+        }
+
+        const int v = count4(masks, a, b, c, d);
+
+        e.key = key;
+        e.value = v;
+
+        return v;
+    }
+
     int count4(const std::vector<uint64_t>* masks,
         int a, int b, int c, int d) {
         const uint64_t* m0 = &masks[0][a * words];
@@ -787,21 +918,39 @@ struct StarDiscrepancy4D_BB {
         const double vol_min = volume4(a0, b0, c0, d0);
         const double vol_max = volume4(a1, b1, c1, d1);
 
-        const int cleq_max =
-            count4(leq_masks, a1, b1, c1, d1);
+        const double eps = 1e-15;
 
-        const int cless_min =
-            count4(less_masks, a0, b0, c0, d0);
+        if (1.0 - vol_min <= best + eps && vol_max <= best + eps) {
+            return;
+        }
 
-        const double ub_plus =
-            double(cleq_max) * invN - vol_min;
+        bool must_recurse = false;
 
-        const double ub_minus =
-            vol_max - double(cless_min) * invN;
+        if (1.0 - vol_min > best + eps) {
+            const int cleq_max =
+                count4_cached(leq_masks, count_cache_leq, a1, b1, c1, d1);
 
-        const double ub = ub_plus > ub_minus ? ub_plus : ub_minus;
+            const double ub_plus =
+                double(cleq_max) * invN - vol_min;
 
-        if (ub <= best + 1e-15) {
+            if (ub_plus > best + eps) {
+                must_recurse = true;
+            }
+        }
+
+        if (!must_recurse && vol_max > best + eps) {
+            const int cless_min =
+                count4_cached(less_masks, count_cache_less, a0, b0, c0, d0);
+
+            const double ub_minus =
+                vol_max - double(cless_min) * invN;
+
+            if (ub_minus > best + eps) {
+                must_recurse = true;
+            }
+        }
+
+        if (!must_recurse) {
             return;
         }
 
@@ -815,7 +964,6 @@ struct StarDiscrepancy4D_BB {
             return;
         }
 
-        // Split along the largest remaining interval.
         if (ra >= rb && ra >= rc && ra >= rd) {
             const int mid = (a0 + a1) >> 1;
             recurse(mid + 1, a1, b0, b1, c0, c1, d0, d1);
@@ -835,6 +983,168 @@ struct StarDiscrepancy4D_BB {
             const int mid = (d0 + d1) >> 1;
             recurse(a0, a1, b0, b1, c0, c1, mid + 1, d1);
             recurse(a0, a1, b0, b1, c0, c1, d0, mid);
+        }
+    }
+
+    struct StarNode4D {
+        int a0, a1;
+        int b0, b1;
+        int c0, c1;
+        int d0, d1;
+    };
+
+    void recurse_iterative(int a0_init, int a1_init,
+        int b0_init, int b1_init,
+        int c0_init, int c1_init,
+        int d0_init, int d1_init) {
+        const double eps = 1e-15;
+
+        std::vector<StarNode4D> stack;
+        stack.reserve(4096);
+
+        stack.push_back({
+            a0_init, a1_init,
+            b0_init, b1_init,
+            c0_init, c1_init,
+            d0_init, d1_init
+            });
+
+        while (!stack.empty()) {
+            const StarNode4D node = stack.back();
+            stack.pop_back();
+
+            const int a0 = node.a0;
+            const int a1 = node.a1;
+            const int b0 = node.b0;
+            const int b1 = node.b1;
+            const int c0 = node.c0;
+            const int c1 = node.c1;
+            const int d0 = node.d0;
+            const int d1 = node.d1;
+
+            const double vol_min = volume4(a0, b0, c0, d0);
+            const double vol_max = volume4(a1, b1, c1, d1);
+
+            // Cheap count-free pruning.
+            if (1.0 - vol_min <= best + eps &&
+                vol_max <= best + eps) {
+                continue;
+            }
+
+            bool must_recurse = false;
+
+            // Lazy upper-bound evaluation.
+            if (1.0 - vol_min > best + eps) {
+                const int cleq_max =
+                    count4_cached(leq_masks, count_cache_leq, a1, b1, c1, d1);
+
+                const double ub_plus =
+                    double(cleq_max) * invN - vol_min;
+
+                if (ub_plus > best + eps) {
+                    must_recurse = true;
+                }
+            }
+
+            if (!must_recurse && vol_max > best + eps) {
+                const int cless_min =
+                    count4_cached(less_masks, count_cache_less, a0, b0, c0, d0);
+
+                const double ub_minus =
+                    vol_max - double(cless_min) * invN;
+
+                if (ub_minus > best + eps) {
+                    must_recurse = true;
+                }
+            }
+
+            if (!must_recurse) {
+                continue;
+            }
+
+            const int ra = a1 - a0;
+            const int rb = b1 - b0;
+            const int rc = c1 - c0;
+            const int rd = d1 - d0;
+
+            if ((ra | rb | rc | rd) == 0) {
+                eval_box(a0, b0, c0, d0);
+                continue;
+            }
+
+            // Split along the largest remaining interval.
+            //
+            // We push the low side first and the high side second,
+            // because the stack is LIFO. This means the high side is visited first.
+            // This matches the recursive ordering that often improves best earlier.
+            if (ra >= rb && ra >= rc && ra >= rd) {
+                const int mid = (a0 + a1) >> 1;
+
+                stack.push_back({
+                    a0, mid,
+                    b0, b1,
+                    c0, c1,
+                    d0, d1
+                    });
+
+                stack.push_back({
+                    mid + 1, a1,
+                    b0, b1,
+                    c0, c1,
+                    d0, d1
+                    });
+            }
+            else if (rb >= rc && rb >= rd) {
+                const int mid = (b0 + b1) >> 1;
+
+                stack.push_back({
+                    a0, a1,
+                    b0, mid,
+                    c0, c1,
+                    d0, d1
+                    });
+
+                stack.push_back({
+                    a0, a1,
+                    mid + 1, b1,
+                    c0, c1,
+                    d0, d1
+                    });
+            }
+            else if (rc >= rd) {
+                const int mid = (c0 + c1) >> 1;
+
+                stack.push_back({
+                    a0, a1,
+                    b0, b1,
+                    c0, mid,
+                    d0, d1
+                    });
+
+                stack.push_back({
+                    a0, a1,
+                    b0, b1,
+                    mid + 1, c1,
+                    d0, d1
+                    });
+            }
+            else {
+                const int mid = (d0 + d1) >> 1;
+
+                stack.push_back({
+                    a0, a1,
+                    b0, b1,
+                    c0, c1,
+                    d0, mid
+                    });
+
+                stack.push_back({
+                    a0, a1,
+                    b0, b1,
+                    c0, c1,
+                    mid + 1, d1
+                    });
+            }
         }
     }
 
@@ -866,7 +1176,13 @@ struct StarDiscrepancy4D_BB {
     double compute() {
         initialize_best();
 
-        recurse(
+        /*recurse(
+            0, static_cast<int>(coords[0].size()) - 1,
+            0, static_cast<int>(coords[1].size()) - 1,
+            0, static_cast<int>(coords[2].size()) - 1,
+            0, static_cast<int>(coords[3].size()) - 1
+        );*/
+        recurse_iterative(
             0, static_cast<int>(coords[0].size()) - 1,
             0, static_cast<int>(coords[1].size()) - 1,
             0, static_cast<int>(coords[2].size()) - 1,
