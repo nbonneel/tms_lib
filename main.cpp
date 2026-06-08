@@ -372,7 +372,7 @@ void test_owen() {
 
 int main() {
 
-	/*test_arithmetic();
+	test_arithmetic();
 
 	testPascal();
 
@@ -390,7 +390,7 @@ int main() {
 
 	test_draw_points();	
 
-	test_discrepancy();	*/
+	test_discrepancy();	
 
 	test_owen();
 
