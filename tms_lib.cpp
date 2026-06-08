@@ -1,8 +1,24 @@
 #include "tms_lib.h"
 
-
 #include <cmath>
 #include <limits>
+#include <cstdio>
+#include <cstring>
+
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
+
+
+
+inline int popcount_u64(uint64_t x) {
+#if defined(_MSC_VER)
+    return static_cast<int>(__popcnt64(x));
+#else
+    return __builtin_popcountll(x);
+#endif
+}
+
 
 char invGalois[MAX_GF + 1][MAX_GF] = { // we set inv(0)=0
     {}, {}, // bases 0 and 1
@@ -392,7 +408,8 @@ inline double sanitize_unit_coord(double x) {
     return x;
 }
 
-double star_discrepancy_exact_bruteforce(const double* points,
+
+double star_discrepancy_exact_bitset(const double* points,
     int npts,
     int dim) {
     assert(points != 0);
@@ -400,16 +417,19 @@ double star_discrepancy_exact_bruteforce(const double* points,
     assert(dim > 0);
 
     const double invN = 1.0 / double(npts);
+    const int words = (npts + 63) >> 6;
 
-    // Copie sanitizée des points.
+    // Copie sanitizée.
     std::vector<double> P(npts * dim);
 
     for (int i = 0; i < npts; ++i) {
         for (int j = 0; j < dim; ++j) {
-            P[i * dim + j] = sanitize_unit_coord(points[i * dim + j]);
+            P[i * dim + j] =
+                sanitize_unit_coord(points[i * dim + j]);
         }
     }
 
+    // Coordonnées candidates par dimension.
     std::vector<std::vector<double> > coords(dim);
 
     for (int j = 0; j < dim; ++j) {
@@ -429,118 +449,167 @@ double star_discrepancy_exact_bruteforce(const double* points,
         );
     }
 
-    std::vector<double> x(dim, 1.0);
-    double best = 0.0;
+    // Total number of candidate boxes
+    unsigned long long total_boxes = 1;
 
-    struct Recursor {
-        const double* P;
-        int npts;
-        int dim;
-        const std::vector<std::vector<double> >* coords;
-        std::vector<double>* x;
-        double invN;
-        double* best;
+    for (int j = 0; j < dim; ++j) {
+        total_boxes *= static_cast<unsigned long long>(coords[j].size());
+    }
 
-        void run(int d) {
-            if (d == dim) {
-                evaluate();
-                return;
-            }
+    assert(total_boxes <=
+        static_cast<unsigned long long>(std::numeric_limits<long long>::max()));
 
-            const std::vector<double>& c = (*coords)[d];
+    // Mask all-ones valid over npts bits.
+    std::vector<uint64_t> all_ones(words, ~uint64_t(0));
 
-            for (size_t i = 0; i < c.size(); ++i) {
-                (*x)[d] = c[i];
-                run(d + 1);
+    const int extra_bits = words * 64 - npts;
+    if (extra_bits > 0) {
+        all_ones[words - 1] >>= extra_bits;
+    }
+
+    // less_masks[j][c][w] : points where p_j < coords[j][c]
+    // leq_masks[j][c][w]  : points where p_j <= coords[j][c]
+    std::vector<std::vector<uint64_t> > less_masks(dim);
+    std::vector<std::vector<uint64_t> > leq_masks(dim);
+
+    for (int j = 0; j < dim; ++j) {
+        const int nj = static_cast<int>(coords[j].size());
+
+        less_masks[j].assign(nj * words, uint64_t(0));
+        leq_masks[j].assign(nj * words, uint64_t(0));
+
+        for (int c = 0; c < nj; ++c) {
+            const double x = coords[j][c];
+
+            uint64_t* less = &less_masks[j][c * words];
+            uint64_t* leq = &leq_masks[j][c * words];
+
+            for (int i = 0; i < npts; ++i) {
+                const double p = P[i * dim + j];
+                const uint64_t bit = uint64_t(1) << (i & 63);
+                const int w = i >> 6;
+
+                if (p < x) {
+                    less[w] |= bit;
+                }
+
+                if (p <= x) {
+                    leq[w] |= bit;
+                }
             }
         }
+    }
 
-        void evaluate() {
+    double global_best = 0.0;
+
+#pragma omp parallel
+    {
+        std::vector<uint64_t> cur_less(words);
+        std::vector<uint64_t> cur_leq(words);
+
+        double local_best = 0.0;
+
+#pragma omp for schedule(dynamic)
+        for (long long linear = 0;
+            linear < static_cast<long long>(total_boxes);
+            ++linear) {
+
+            std::copy(all_ones.begin(), all_ones.end(), cur_less.begin());
+            std::copy(all_ones.begin(), all_ones.end(), cur_leq.begin());
+
+            unsigned long long code = static_cast<unsigned long long>(linear);
+
             double volume = 1.0;
 
             for (int j = 0; j < dim; ++j) {
-                volume *= (*x)[j];
+                const int nj = static_cast<int>(coords[j].size());
+                const int c = static_cast<int>(code % nj);
+                code /= nj;
+
+                volume *= coords[j][c];
+
+                const uint64_t* less =
+                    &less_masks[j][c * words];
+
+                const uint64_t* leq =
+                    &leq_masks[j][c * words];
+
+                for (int w = 0; w < words; ++w) {
+                    cur_less[w] &= less[w];
+                    cur_leq[w] &= leq[w];
+                }
             }
 
             int count_less = 0;
             int count_leq = 0;
 
-            for (int i = 0; i < npts; ++i) {
-                const double* p = P + i * dim;
-
-                bool less = true;
-                bool leq = true;
-
-                for (int j = 0; j < dim; ++j) {
-                    if (!(p[j] < (*x)[j])) {
-                        less = false;
-                    }
-
-                    if (!(p[j] <= (*x)[j])) {
-                        leq = false;
-                    }
-
-                    if (!less && !leq) {
-                        break;
-                    }
-                }
-
-                if (less) ++count_less;
-                if (leq)  ++count_leq;
+            for (int w = 0; w < words; ++w) {
+                count_less += popcount_u64(cur_less[w]);
+                count_leq += popcount_u64(cur_leq[w]);
             }
 
-            const double dplus = double(count_leq) * invN - volume;
-            const double dminus = volume - double(count_less) * invN;
+            const double dplus =
+                double(count_leq) * invN - volume;
 
-            if (dplus > *best) {
-                *best = dplus;
+            const double dminus =
+                volume - double(count_less) * invN;
+
+            if (dplus > local_best) {
+                local_best = dplus;
             }
 
-            if (dminus > *best) {
-                *best = dminus;
+            if (dminus > local_best) {
+                local_best = dminus;
             }
         }
-    };
 
-    Recursor R;
-    R.P = P.data();
-    R.npts = npts;
-    R.dim = dim;
-    R.coords = &coords;
-    R.x = &x;
-    R.invN = invN;
-    R.best = &best;
+#pragma omp critical
+        {
+            if (local_best > global_best) {
+                global_best = local_best;
+            }
+        }
+    }
 
-    R.run(0);
-
-    return best;
+    return global_best;
 }
 
-double star_discrepancy_2d_exact(const double* points,
+struct StarPoint2D {
+    double x;
+    double y;
+    int y_index;
+};
+
+
+// O(n^2)
+double star_discrepancy_2d_exact_sweep(const double* points,
     int npts) {
     assert(points != 0);
     assert(npts > 0);
 
     const double invN = 1.0 / double(npts);
 
-    std::vector<double> P(2 * npts);
-
-    for (int i = 0; i < npts; ++i) {
-        P[2 * i + 0] = sanitize_unit_coord(points[2 * i + 0]);
-        P[2 * i + 1] = sanitize_unit_coord(points[2 * i + 1]);
-    }
-
+    std::vector<StarPoint2D> P(npts);
     std::vector<double> xs;
     std::vector<double> ys;
 
     xs.reserve(npts + 1);
     ys.reserve(npts + 1);
 
+    // Copy and sanitize points.
     for (int i = 0; i < npts; ++i) {
-        xs.push_back(P[2 * i + 0]);
-        ys.push_back(P[2 * i + 1]);
+        const double x = sanitize_unit_coord(points[2 * i + 0]);
+        const double y = sanitize_unit_coord(points[2 * i + 1]);
+
+        P[i].x = x;
+        P[i].y = y;
+        P[i].y_index = -1;
+
+        xs.push_back(x);
+        ys.push_back(y);
     }
 
+    // The candidate value 1 is required.
     xs.push_back(1.0);
     ys.push_back(1.0);
 
@@ -550,37 +619,98 @@ double star_discrepancy_2d_exact(const double* points,
     xs.erase(std::unique(xs.begin(), xs.end()), xs.end());
     ys.erase(std::unique(ys.begin(), ys.end()), ys.end());
 
-    double best = 0.0;
+    const int nx = static_cast<int>(xs.size());
+    const int ny = static_cast<int>(ys.size());
 
-    for (size_t ix = 0; ix < xs.size(); ++ix) {
+    // Assign a y-rank to every point.
+    for (int i = 0; i < npts; ++i) {
+        std::vector<double>::iterator it =
+            std::lower_bound(ys.begin(), ys.end(), P[i].y);
+
+        assert(it != ys.end());
+        assert(*it == P[i].y);
+
+        P[i].y_index = static_cast<int>(it - ys.begin());
+    }
+
+    // Sort points by x-coordinate.
+    std::sort(P.begin(), P.end(),
+        [](const StarPoint2D& a, const StarPoint2D& b) {
+            if (a.x < b.x) return true;
+            if (b.x < a.x) return false;
+            return a.y < b.y;
+        });
+
+    std::vector<int> active_y_count(ny, 0);
+
+    double best = 0.0;
+    int next_point = 0;
+
+    for (int ix = 0; ix < nx; ++ix) {
         const double x = xs[ix];
 
-        for (size_t iy = 0; iy < ys.size(); ++iy) {
-            const double y = ys[iy];
+        // ------------------------------------------------------------
+        // Dminus:
+        // active set contains points with p.x < x.
+        //
+        // For a candidate y, the relevant count is:
+        //     #{ p : p.x < x and p.y < y }
+        //
+        // During the scan over y, prefix_count stores points with
+        // y-index strictly smaller than the current candidate.
+        // ------------------------------------------------------------
+        {
+            int prefix_count = 0;
 
-            const double volume = x * y;
+            for (int iy = 0; iy < ny; ++iy) {
+                const double y = ys[iy];
+                const double volume = x * y;
 
-            int count_less = 0;
-            int count_leq = 0;
+                const double dminus =
+                    volume - double(prefix_count) * invN;
 
-            for (int i = 0; i < npts; ++i) {
-                const double px = P[2 * i + 0];
-                const double py = P[2 * i + 1];
-
-                if (px < x && py < y) {
-                    ++count_less;
+                if (dminus > best) {
+                    best = dminus;
                 }
 
-                if (px <= x && py <= y) {
-                    ++count_leq;
+                // Make points with p.y == current y active for larger y.
+                prefix_count += active_y_count[iy];
+            }
+        }
+
+        // Add all points with p.x == x.
+        // After this, active set contains points with p.x <= x.
+        while (next_point < npts && P[next_point].x == x) {
+            ++active_y_count[P[next_point].y_index];
+            ++next_point;
+        }
+
+        // ------------------------------------------------------------
+        // Dplus:
+        // active set contains points with p.x <= x.
+        //
+        // For a candidate y, the relevant count is:
+        //     #{ p : p.x <= x and p.y <= y }
+        //
+        // During the scan over y, prefix_count is updated before
+        // evaluating the discrepancy.
+        // ------------------------------------------------------------
+        {
+            int prefix_count = 0;
+
+            for (int iy = 0; iy < ny; ++iy) {
+                prefix_count += active_y_count[iy];
+
+                const double y = ys[iy];
+                const double volume = x * y;
+
+                const double dplus =
+                    double(prefix_count) * invN - volume;
+
+                if (dplus > best) {
+                    best = dplus;
                 }
             }
-
-            const double dplus = double(count_leq) * invN - volume;
-            const double dminus = volume - double(count_less) * invN;
-
-            if (dplus > best)  best = dplus;
-            if (dminus > best) best = dminus;
         }
     }
 
@@ -591,10 +721,10 @@ double star_discrepancy(const double* points,
     int npts,
     int dim) {
     if (dim == 2) {
-        return star_discrepancy_2d_exact(points, npts);
+        return star_discrepancy_2d_exact_sweep(points, npts);
     }
 
-    return star_discrepancy_exact_bruteforce(points, npts, dim);
+    return star_discrepancy_exact_bitset(points, npts, dim);
 }
 
 void print_point_range(const double* points, int npts, int dim) {
@@ -610,12 +740,7 @@ void print_point_range(const double* points, int npts, int dim) {
 }
 
 
-#include <vector>
-#include <cmath>
-#include <cstdio>
-#include <cassert>
-#include <algorithm>
-#include <cstring>
+
 
 
 
@@ -633,6 +758,32 @@ inline const char* discrepancy_metric_name(DiscrepancyPlotMetric metric) {
 inline double safe_log10(double x) {
     const double eps = 1e-300;
     return std::log10(x > eps ? x : eps);
+}
+
+inline long long integer_power_clamped(int base, int exponent) {
+    assert(base >= 2);
+    assert(exponent >= 0);
+
+    long long r = 1;
+
+    for (int i = 0; i < exponent; ++i) {
+        if (r > std::numeric_limits<long long>::max() / base) {
+            return std::numeric_limits<long long>::max();
+        }
+
+        r *= base;
+    }
+
+    return r;
+}
+
+inline void format_integer_label(long long v, char* out, int out_size) {
+    if (v < 1000000LL) {
+        std::snprintf(out, out_size, "%lld", v);
+    }
+    else {
+        std::snprintf(out, out_size, "%.3g", double(v));
+    }
 }
 
 inline void svg_text(FILE* f,

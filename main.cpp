@@ -263,36 +263,222 @@ void test_draw_points() {
 
 void test_discrepancy() {
 
-	typedef GF3 F;
+	typedef GF5 F;
 	typedef F::T T;
 
-	const int n_pts = std::pow(std::pow((double) F::p, F::r), 7);
+	const int n_pts = std::pow(std::pow((double)F::p, F::r), 2);
 
-	// theses Sobol' polynomials work nicely in GF3, but produce funny points in GF4
-	Matrix<F> poly1(1, 3, { 1, 2, 0 });
-	Matrix<F> init1(3, 3, { 1, 1, 1, 0, 1, 1, 0, 0, 1 });
-	SobolMatrix<F> S1(15, poly1.view(), init1.view());
+	T inits[4][5][5] = { { {1,    2,      3,      1,      4},
+{0,     1,      3,      4,      3},
+{0,     0,      1,      1,      3},
+{0,     0,      0,      1,      1},
+{0,     0,      0,      0,      1}
+	},
+	{ { 1, 4, 2, 3, 4 },
+		{ 0,     1,      1,      1,      4 },
+		{ 0,     0,      1,      2,      2 },
+		{ 0,     0,      0,      1,      2 },
+		{ 0,     0,      0,      0,      1 }
+	},
+	{ { 1, 1, 2, 2, 4 },
+		{ 0,     1,      4,      1,      1 },
+		{ 0,     0,      1,      3,      2 },
+		{ 0,     0,      0,      1,      3 },
+		{ 0,     0,      0,      0,      1 }
+	},
+	{ { 1, 3, 3, 4, 4 },
+		{ 0,     1,      2,      4,      2 },
+		{ 0,     0,      1,      4,      3 },
+		{ 0,     0,      0,      1,      4 },
+		{ 0,     0,      0,      0,      1 }
+	}
+	};
 
-	Matrix<F> poly2(1, 3, { 2, 2, 0 });
-	Matrix<F> init2(3, 3, { 1, 0, 1,  0, 1, 2, 0, 0, 1 });
-	SobolMatrix<F> S2(15, poly2.view(), init2.view());
+	Matrix<F> poly(1, 5, { 1, 4, 0, 0, 0 } );
+	MatrixView<F> init(&inits[0][0][0], 5, 5);
 
-	std::vector<MatrixView<F> > m(2);
-	m[0] = S1.view();
-	m[1] = S2.view();
+	std::vector< Matrix<F> > matrices(4);
+	std::vector< MatrixView<F> > matrices_view(4);
+	for (int i = 0; i < 4; i++) {
+		poly[0] = i + 1;
+		init.values = &inits[i][0][0];
+		
+		SobolMatrix<F> S(15, poly.view(), init);
+		matrices[i] = S.view(); // copy
+		matrices_view[i] = matrices[i].view();
+	}
 
-	std::vector<double> pts = get_points<F>(&m[0], m.size(), n_pts);
-	double stardisc = star_discrepancy(&pts[0], n_pts, m.size());
+
+	std::vector<double> pts = get_points<F>(&matrices_view[0], matrices_view.size(), n_pts);
+	double stardisc = star_discrepancy(&pts[0], n_pts, matrices_view.size());
 	
 
-	print_point_range(&pts[0], n_pts, m.size());
+	print_point_range(&pts[0], n_pts, matrices_view.size());
 	std::cout << "n_pts: "<<n_pts<<", star discrepancy="<< stardisc << std::endl;
 
-	double gl2disc = generalized_l2_discrepancy(&pts[0], n_pts, m.size());
+	double gl2disc = generalized_l2_discrepancy(&pts[0], n_pts, matrices_view.size());
 	std::cout << "n_pts: " << n_pts << ", generalized l2 discrepancy=" << gl2disc << std::endl;
 
-	plot_discrepancy_svg(&m[0], m.size(), 1, 7, 1 / 3., DISCREPANCY_STAR, "plot_disc.svg");
+	plot_discrepancy_svg(&matrices_view[0], matrices_view.size(), 1, 3, 1 / 4., DISCREPANCY_STAR, "plot_disc.svg");
 }
+
+
+
+void generate_all_mat() {
+
+	typedef GF5 F;
+	typedef F::T T;
+	enum { Q = GFCardinality<F::p, F::r>::value };
+
+	const int test_size = 8;
+	const int e = Q;
+	const Matrix<F> P = PascalTranslateFieldMatrix<F, Q, 1 >::value();
+	std::vector<MatrixView<F> > Ppow(12);
+	Ppow[0] = PascalTranslateFieldMatrix<F, Q, 1 >::value();
+	Ppow[1] = PascalTranslateFieldMatrix<F, Q, 2 >::value();
+	Ppow[2] = PascalTranslateFieldMatrix<F, Q, 3 >::value();
+	Ppow[3] = PascalTranslateFieldMatrix<F, Q, 4 >::value();
+	Ppow[4] = PascalTranslateFieldMatrix<F, Q, 5 >::value();
+	Ppow[5] = PascalTranslateFieldMatrix<F, Q, 6 >::value();
+	Ppow[6] = PascalTranslateFieldMatrix<F, Q, 7 >::value();
+	Ppow[7] = PascalTranslateFieldMatrix<F, Q, 8 >::value();
+	Ppow[8] = PascalTranslateFieldMatrix<F, Q, 9 >::value();
+	Ppow[9] = PascalTranslateFieldMatrix<F, Q, 10 >::value();
+	Ppow[10] = PascalTranslateFieldMatrix<F, Q, 11 >::value();
+	Ppow[11] = PascalTranslateFieldMatrix<F, Q, 12 >::value();
+
+
+	Matrix<F> init(e, e);
+
+	std::vector<MatrixView<F> > high_dim_sequence(Q * 2 - 1);
+
+	high_dim_sequence[0] = PascalTranslateFieldMatrix<F, test_size, 0 >::value();
+	high_dim_sequence[1] = PascalTranslateFieldMatrix<F, test_size, 1 >::value();
+	high_dim_sequence[2] = PascalTranslateFieldMatrix<F, test_size, 2 >::value();
+	high_dim_sequence[3] = PascalTranslateFieldMatrix<F, test_size, 3 >::value();
+	high_dim_sequence[4] = PascalTranslateFieldMatrix<F, test_size, 4 >::value();
+	/*high_dim_sequence[5] = PascalTranslateFieldMatrix<F, test_size, 5 >::value();
+	high_dim_sequence[6] = PascalTranslateFieldMatrix<F, test_size, 6 >::value();
+	high_dim_sequence[7] = PascalTranslateFieldMatrix<F, test_size, 7 >::value();
+	high_dim_sequence[8] = PascalTranslateFieldMatrix<F, test_size, 8 >::value();
+	high_dim_sequence[9] = PascalTranslateFieldMatrix<F, test_size, 9 >::value();
+	high_dim_sequence[10] = PascalTranslateFieldMatrix<F, test_size, 10 >::value();*/
+	for (int i = 0; i < Q - 1; i++) {
+		Matrix<F>* m = new Matrix<F>(test_size, test_size);
+		high_dim_sequence[Q + i] = m->view();
+	}
+
+	std::vector< Matrix<F> > polynomials(Q - 1);
+	for (int i = 0; i < Q - 1; i++) {
+		polynomials[i] = Matrix<F>(1, Q);
+		polynomials[i].set_zero();
+		polynomials[i][0] = T{ i + 1 };
+		polynomials[i][1] = -T{ 1 };
+	}
+
+	int best_s = 10000;
+
+	std::list<std::pair<int, int> > position_value;
+	for (int i = 1; i < Q; i++)
+		position_value.push_back(std::pair<int, int>(0, i)); // if a matrix is good, then k*matrix is good as well, so just let's fix m[0][0] to 1
+
+	const int list_size = std::min(test_size - 1, Q - 1);
+	int* mult = new int[list_size];
+
+	long long numOptions = std::pow(Q - 1, list_size);
+	long long curOption = 0;
+	while (!position_value.empty()) {
+		std::pair<int, int> top = position_value.back();
+		position_value.pop_back();
+		int pos = top.first;
+		if (pos < list_size) {
+			mult[pos] = top.second;
+		}
+
+
+		if (pos == list_size - 1) {
+			curOption++;
+
+
+
+			std::vector< Matrix<F> > all_pow_inits(Q - 1);
+			for (int i = 0; i < Q - 1; i++) {
+
+				Matrix<F> pow_init = Ppow[i];
+
+				for (int j = 0; j < list_size; j++) {
+
+					for (int k = 0; k < e; k++) {
+						pow_init[(j + 1) * e + k] = gf_div<F::p, F::r>(pow_init[(j + 1) * e + k], T{ mult[j] });
+					}
+					for (int k = 0; k < e; k++) {
+						pow_init[k * e + j + 1] *= T{ mult[j] };
+					}
+				}
+				pow_init.reduce();
+				all_pow_inits[i] = pow_init.view();
+
+				fill_sobol(high_dim_sequence[Q + i], polynomials[i].view(), pow_init.view());
+			}
+
+			std::vector<int> ttest1 = t_values(&high_dim_sequence[0], Q);
+			std::vector<int> ttestt2 = t_values(&high_dim_sequence[Q], Q - 1);
+
+			std::vector<int> t = t_values(&high_dim_sequence[0], Q * 2 - 1);
+			int cur_s = 0;
+			for (int i = 0; i < t.size(); i++) {
+				cur_s += t[i];
+			}
+			if (cur_s < best_s) {
+				best_s = cur_s;
+				std::cout << "t = " << std::endl;
+				for (int i = 0; i < t.size(); i++) {
+					std::cout << t[i] << " ";
+				}
+				std::cout << std::endl;
+
+				std::cout << "inits = " << std::endl;
+				for (int i = 0; i < Q - 1; i++) {
+					std::cout << all_pow_inits[i];
+					std::cout << std::endl;
+				}
+
+			}
+
+			/*for (int i = 0; i < e; i++) {
+				for (int j = 0; j < e; j++) {
+					fprintf(f, "%u ", init[i * e + j]);
+				}
+				fprintf(f, "\n");
+			}
+			fprintf(f, "\n");*/
+
+			if (curOption % 1000 == 0) {
+				std::cout << curOption / (double)numOptions * 100 << " %" << std::endl;
+			}
+			/*std::cout << "matrix " << std::endl;
+			printMat(&init[0], e);
+			std::cout << "-------" << std::endl;*/
+
+
+		}
+		else {
+			pos++;
+
+			for (int k = 1; k < Q; k++) {
+				position_value.push_back(std::pair<int, int>(pos, k));
+			}
+
+		}
+	}
+
+
+	delete[] mult;
+
+
+	std::cout << "numOptions : " << numOptions << std::endl;
+}
+
 
 
 int main() {
@@ -316,6 +502,8 @@ int main() {
 	//test_list_matrices();
 
 	test_discrepancy();
+
+	//generate_all_mat();
 
 	return 0;
 };

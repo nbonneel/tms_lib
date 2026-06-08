@@ -2108,7 +2108,8 @@ extern inline double safe_log10(double x);
 extern inline void svg_text(FILE* f, double x, double y, const char* text, int font_size = 12, const char* anchor = "middle", const char* fill = "#333333");
 extern inline void svg_line(FILE* f, double x1, double y1, double x2, double y2, const char* stroke, double width = 1.0, const char* extra = "");
 extern inline void svg_circle(FILE* f, double cx, double cy, double r, const char* fill, const char* stroke = "#333333");
-
+extern inline long long integer_power_clamped(int base, int exponent);
+extern inline void format_integer_label(long long v, char* out, int out_size);
 
 template<class F>
 bool plot_discrepancy_svg(const MatrixView<F>* all_matrices,
@@ -2119,7 +2120,8 @@ bool plot_discrepancy_svg(const MatrixView<F>* all_matrices,
     DiscrepancyPlotMetric metric,
     const char* filename,
     int width = 900,
-    int height = 560) {
+    int height = 560,
+    bool draw_iid_reference = true) {
     assert(all_matrices != 0);
     assert(n_matrices > 0);
     assert(m_max >= m_min);
@@ -2148,7 +2150,7 @@ bool plot_discrepancy_svg(const MatrixView<F>* all_matrices,
             n_points = 1;
         }
 
-        // Évite les doublons quand q^m arrondi donne le même entier.
+        // Avoid duplicate sample counts caused by rounding.
         if (n_points == previous_n) {
             continue;
         }
@@ -2205,6 +2207,23 @@ bool plot_discrepancy_svg(const MatrixView<F>* all_matrices,
         ymax = std::max(ymax, samples[i].discrepancy);
     }
 
+    // Add an IID reference curve with slope N^{-1/2}.
+    // The curve is normalized to the first discrepancy value for readability.
+    std::vector<double> iid_reference(samples.size(), 0.0);
+
+    if (draw_iid_reference && samples[0].discrepancy > 0.0) {
+        const double n0 = double(samples[0].n_points);
+        const double d0 = samples[0].discrepancy;
+
+        for (size_t i = 0; i < samples.size(); ++i) {
+            const double n = double(samples[i].n_points);
+            iid_reference[i] = d0 * std::sqrt(n0 / n);
+
+            ymin = std::min(ymin, iid_reference[i]);
+            ymax = std::max(ymax, iid_reference[i]);
+        }
+    }
+
     const double min_positive = 1e-300;
 
     if (ymin <= 0.0) {
@@ -2215,7 +2234,6 @@ bool plot_discrepancy_svg(const MatrixView<F>* all_matrices,
         ymax = 1.0;
     }
 
-    // Petite marge verticale en log.
     double log_ymin = safe_log10(ymin);
     double log_ymax = safe_log10(ymax);
 
@@ -2232,7 +2250,7 @@ bool plot_discrepancy_svg(const MatrixView<F>* all_matrices,
     const double left = 90.0;
     const double right = 30.0;
     const double top = 55.0;
-    const double bottom = 75.0;
+    const double bottom = 80.0;
 
     const double plot_x0 = left;
     const double plot_y0 = top;
@@ -2265,13 +2283,11 @@ bool plot_discrepancy_svg(const MatrixView<F>* all_matrices,
         "<rect x=\"0\" y=\"0\" width=\"%d\" height=\"%d\" fill=\"#ffffff\"/>\n",
         width, height);
 
-    // Fond du plot
     std::fprintf(f,
         "<rect x=\"%.3f\" y=\"%.3f\" width=\"%.3f\" height=\"%.3f\" "
         "fill=\"#fbfbfb\" stroke=\"#cccccc\" stroke-width=\"1\"/>\n",
         plot_x0, plot_y0, plot_w, plot_h);
 
-    // Titre
     {
         char title[512];
         std::snprintf(title, sizeof(title),
@@ -2283,7 +2299,7 @@ bool plot_discrepancy_svg(const MatrixView<F>* all_matrices,
         svg_text(f, width * 0.5, 28.0, title, 18, "middle", "#222222");
     }
 
-    // Grille verticale + ticks x
+    // X ticks are shown only at integer octaves, with labels equal to N = q^m.
     {
         const int m_tick_min = static_cast<int>(std::ceil(xmin - 1e-12));
         const int m_tick_max = static_cast<int>(std::floor(xmax + 1e-12));
@@ -2293,13 +2309,16 @@ bool plot_discrepancy_svg(const MatrixView<F>* all_matrices,
 
             svg_line(f, x, plot_y0, x, plot_y1, "#e0e0e0", 1.0);
 
+            const long long n_tick = integer_power_clamped(Q, mt);
+
             char label[64];
-            std::snprintf(label, sizeof(label), "%d", mt);
+            format_integer_label(n_tick, label, sizeof(label));
+
             svg_text(f, x, plot_y1 + 20.0, label, 12, "middle", "#333333");
         }
     }
 
-    // Grille horizontale log10 + ticks y
+    // Horizontal log-scale grid.
     {
         const int e_min = static_cast<int>(std::ceil(log_ymin));
         const int e_max = static_cast<int>(std::floor(log_ymax));
@@ -2316,35 +2335,43 @@ bool plot_discrepancy_svg(const MatrixView<F>* all_matrices,
         }
     }
 
-    // Axes
     svg_line(f, plot_x0, plot_y1, plot_x1, plot_y1, "#333333", 1.4);
     svg_line(f, plot_x0, plot_y0, plot_x0, plot_y1, "#333333", 1.4);
 
-    // Labels axes
-    {
-        char xlabel[256];
-        std::snprintf(xlabel, sizeof(xlabel),
-            "log_%d(N)    where N = number of points",
-            Q);
+    svg_text(f, plot_x0 + plot_w * 0.5, height - 28.0,
+        "Number of points N", 14, "middle", "#222222");
 
-        svg_text(f, plot_x0 + plot_w * 0.5, height - 25.0,
-            xlabel, 14, "middle", "#222222");
+    std::fprintf(f,
+        "<text x=\"24\" y=\"%.3f\" "
+        "font-family=\"Arial, Helvetica, sans-serif\" "
+        "font-size=\"14\" text-anchor=\"middle\" fill=\"#222222\" "
+        "transform=\"rotate(-90 24 %.3f)\">%s</text>\n",
+        plot_y0 + plot_h * 0.5,
+        plot_y0 + plot_h * 0.5,
+        discrepancy_metric_name(metric));
 
-        // Label y tourné.
-        std::fprintf(f,
-            "<text x=\"24\" y=\"%.3f\" "
-            "font-family=\"Arial, Helvetica, sans-serif\" "
-            "font-size=\"14\" text-anchor=\"middle\" fill=\"#222222\" "
-            "transform=\"rotate(-90 24 %.3f)\">%s</text>\n",
-            plot_y0 + plot_h * 0.5,
-            plot_y0 + plot_h * 0.5,
-            discrepancy_metric_name(metric));
-    }
-
-    // Courbe
     const char* curve_color = "#5B8DEF";
     const char* point_color = "#A7C7F9";
+    const char* iid_color = "#D36C6C";
 
+    // IID reference line.
+    if (draw_iid_reference && samples.size() >= 2 && samples[0].discrepancy > 0.0) {
+        std::fprintf(f,
+            "<polyline fill=\"none\" stroke=\"%s\" stroke-width=\"2.0\" "
+            "stroke-dasharray=\"7 5\" stroke-linejoin=\"round\" "
+            "stroke-linecap=\"round\" points=\"",
+            iid_color);
+
+        for (size_t i = 0; i < samples.size(); ++i) {
+            const double x = map_x(samples[i].m_value);
+            const double y = map_y(iid_reference[i]);
+            std::fprintf(f, "%.3f,%.3f ", x, y);
+        }
+
+        std::fprintf(f, "\"/>\n");
+    }
+
+    // Measured discrepancy curve.
     if (samples.size() >= 2) {
         std::fprintf(f,
             "<polyline fill=\"none\" stroke=\"%s\" stroke-width=\"2.2\" "
@@ -2360,7 +2387,7 @@ bool plot_discrepancy_svg(const MatrixView<F>* all_matrices,
         std::fprintf(f, "\"/>\n");
     }
 
-    // Points + tooltips SVG natifs
+    // Data points with native SVG tooltips.
     for (size_t i = 0; i < samples.size(); ++i) {
         const double x = map_x(samples[i].m_value);
         const double y = map_y(samples[i].discrepancy);
@@ -2380,41 +2407,31 @@ bool plot_discrepancy_svg(const MatrixView<F>* all_matrices,
         std::fprintf(f, "</circle>\n");
     }
 
-    // Légende / résumé
+    // Compact legend.
     {
-        const double lx = plot_x1 - 260.0;
+        const double lx = plot_x1 - 255.0;
         const double ly = plot_y0 + 16.0;
 
         std::fprintf(f,
-            "<rect x=\"%.3f\" y=\"%.3f\" width=\"245\" height=\"74\" "
+            "<rect x=\"%.3f\" y=\"%.3f\" width=\"240\" height=\"55\" "
             "rx=\"6\" ry=\"6\" fill=\"#ffffff\" stroke=\"#d0d0d0\"/>\n",
             lx, ly);
 
-        char line1[256];
-        std::snprintf(line1, sizeof(line1),
-            "samples: %d", static_cast<int>(samples.size()));
+        svg_circle(f, lx + 15.0, ly + 18.0, 4.0, point_color, "#2f5fa7");
+        svg_line(f, lx + 27.0, ly + 18.0, lx + 57.0, ly + 18.0, curve_color, 2.2);
 
-        char line2[256];
-        std::snprintf(line2, sizeof(line2),
-            "m range: %.3g to %.3g, step %.3g",
-            m_min, m_max, octave_step);
-
-        char line3[256];
-        std::snprintf(line3, sizeof(line3),
-            "N range: %lld to %lld",
-            samples.front().n_points,
-            samples.back().n_points);
-
-        svg_circle(f, lx + 14.0, ly + 18.0, 4.0, point_color, "#2f5fa7");
-        svg_line(f, lx + 25.0, ly + 18.0, lx + 55.0, ly + 18.0, curve_color, 2.2);
-
-        svg_text(f, lx + 64.0, ly + 22.0,
+        svg_text(f, lx + 66.0, ly + 22.0,
             discrepancy_metric_name(metric),
             12, "start", "#333333");
 
-        svg_text(f, lx + 12.0, ly + 42.0, line1, 12, "start", "#555555");
-        svg_text(f, lx + 12.0, ly + 57.0, line2, 12, "start", "#555555");
-        svg_text(f, lx + 12.0, ly + 72.0, line3, 12, "start", "#555555");
+        if (draw_iid_reference) {
+            svg_line(f, lx + 10.0, ly + 39.0, lx + 57.0, ly + 39.0,
+                iid_color, 2.0, "stroke-dasharray=\"7 5\"");
+
+            svg_text(f, lx + 66.0, ly + 43.0,
+                "IID uniform, slope N^{-1/2}",
+                12, "start", "#333333");
+        }
     }
 
     std::fprintf(f, "</svg>\n");
