@@ -2,10 +2,11 @@
 #include <vector>
 #include <chrono>
 #include <list>
+#include <sstream>
 
 void test_arithmetic() {
 	typedef GF5 F;
-	typedef F::T T;
+	typedef typename F::T T;
 
 	T a{ 3 };
 	T b{ 2 };
@@ -18,7 +19,7 @@ void test_arithmetic() {
 void testPascal() {
 
 	typedef GF4 F;
-	typedef F::T T;
+	typedef typename F::T T;
 
 	const MatrixView<F>& P = PascalPowIntMatrix<F /*GF4*/, 9 /*size*/, 1 /*power*/>::value();
 	const MatrixView<F>& P3I = PascalPowIntMatrix<F, 9, 3 >::value();
@@ -36,7 +37,7 @@ void testPascal() {
 void testSobolCharacteristicMatrix() {
 
 	typedef GF8 F;
-	typedef F::T T;
+	typedef typename F::T T;
 
 	Matrix<F> poly1(1, 5, { 1, 4, 0, 0, 0 });  // x^5 + 4x + 1 (monic polynomial : x^5 is necessarily 1)
 	Matrix<F> init1(5, 5, { 1, 1, 0, 2, 1,   0, 1, 1, 3, 2,   0, 0, 1, 1, 1,   0, 0, 0, 1, 0,  0, 0, 0, 0, 1 });
@@ -61,7 +62,7 @@ void testSobolCharacteristicMatrix() {
 void test_tensor_product() {
 
 	typedef GF5 F;
-	typedef F::T T;
+	typedef typename F::T T;
 
 	Matrix<F> triu(4, 4);
 	triu.set_zero();
@@ -87,7 +88,7 @@ void test_tensor_product() {
 void test_t0() {
 
 	typedef GF5 F;
-	typedef F::T T;
+	typedef typename F::T T;
 
 	Matrix<F> Id(9, 9);
 	Id.set_id();
@@ -110,7 +111,7 @@ void test_t0() {
 void test_rank() {
 
 	typedef GF5 F;
-	typedef F::T T;
+	typedef typename F::T T;
 
 	Matrix<F> Id(9, 9);
 	Id.set_id();
@@ -146,22 +147,7 @@ void test_rank() {
 void test_t_values() {
 
 	typedef GF5 F;
-	typedef F::T T;
-
-	// 3 matrices from Victor. t={0, 1, 1, 1, 1, 2, 3, 2}
-	/*T matrices[3][8][8] = {
-		{{1, 1, 2, 2, 3, 1, 3, 2}, {0, 2, 3, 4, 1, 3, 2, 2}, {0, 0, 2, 0, 0, 4, 1, 4}, {0, 0, 0, 1, 3, 4, 1, 1},
-		 {0, 0, 0, 0, 3, 2, 4, 0}, {0, 0, 0, 0, 0, 3, 0, 1}, {0, 0, 0, 0, 0, 0, 1, 1}, {0, 0, 0, 0, 0, 0, 0, 2}},
-		{{4, 3, 2, 4, 1, 2, 0, 4}, {0, 4, 2, 1, 2, 1, 3, 1}, {0, 0, 1, 2, 4, 3, 3, 0}, {0, 0, 0, 4, 1, 1, 2, 4},
-		 {0, 0, 0, 0, 1, 0, 3, 0}, {0, 0, 0, 0, 0, 1, 4, 0}, {0, 0, 0, 0, 0, 0, 4, 1}, {0, 0, 0, 0, 0, 0, 0, 4}},
-		{{4, 3, 4, 4, 4, 2, 1, 4}, {0, 3, 3, 2, 1, 4, 2, 3}, {0, 0, 1, 4, 3, 2, 1, 2}, {0, 0, 0, 3, 3, 4, 1, 0},
-		 {0, 0, 0, 0, 3, 4, 3, 1}, {0, 0, 0, 0, 0, 2, 0, 1}, {0, 0, 0, 0, 0, 0, 2, 0}, {0, 0, 0, 0, 0, 0, 0, 1}} };
-
-	std::vector<MatrixView<F> > sequence(3);
-	sequence[0] = MatrixView<F>(&matrices[0][0][0], 8, 8);
-	sequence[1] = MatrixView<F>(&matrices[1][0][0], 8, 8);
-	sequence[2] = MatrixView<F>(&matrices[2][0][0], 8, 8);*/
-
+	typedef typename F::T T;
 
 	Matrix<F> poly1(1, 5, { 4, 2, 4, 0, 2 });
 	Matrix<F> init1(5, 5, { 1, 1, 0, 2, 1,   0, 1, 1, 3, 2,   0, 0, 1, 1, 1,   0, 0, 0, 1, 0,  0, 0, 0, 0, 1 });
@@ -209,7 +195,7 @@ void test_t_values() {
 // lists all upper triangular matrices with exactly 1 in the diagonal, and at least 1 in the first row 
 void test_list_matrices() {
 	typedef GF3 F;
-	typedef F::T T;
+	typedef typename F::T T;
 
 	const int mat_size = 3;
 	Matrix<F> min_matrix(mat_size, mat_size);
@@ -263,7 +249,7 @@ void test_list_matrices() {
 				std::cout << "rank = " << rank << std::endl; // ok, all matrices are full rank since triangular with positive diagonal
 			}
 
-#pragma atomic
+#pragma omp atomic
 			num_matrix++;
 		}
 	}
@@ -272,7 +258,7 @@ void test_list_matrices() {
 void test_draw_points() {
 
 	typedef GF4 F;
-	typedef F::T T;
+	typedef typename F::T T;
 
 	// theses Sobol' polynomials work nicely in GF3, but produce funny points in GF4
 	Matrix<F> poly1(1, 3, { 1, 2, 0 });
@@ -292,78 +278,17 @@ void test_draw_points() {
 	S1.save_svg("matrix1.svg");
 }
 
-void test_discrepancy() {
-
-	typedef GF5 F;
-	typedef F::T T;
-
-	const int n_pts = std::pow(std::pow((double)F::p, F::r), 4); //4.5 => 20 s
-
-	T inits[4][5][5] = { 
-	  { {1,     2,      3,      1,      4},
-		{0,     1,      3,      4,      3},
-		{0,     0,      1,      1,      3},
-		{0,     0,      0,      1,      1},
-		{0,     0,      0,      0,      1}
-	},
-	  { { 1,     4,		 2,		 3,		 4 },
-		{ 0,     1,      1,      1,      4 },
-		{ 0,     0,      1,      2,      2 },
-		{ 0,     0,      0,      1,      2 },
-		{ 0,     0,      0,      0,      1 }
-	},
-	  { { 1,	 1,		 2,		 2,		 4 },
-		{ 0,     1,      4,      1,      1 },
-		{ 0,     0,      1,      3,      2 },
-		{ 0,     0,      0,      1,      3 },
-		{ 0,     0,      0,      0,      1 }
-	},
-	  { { 1,	 3,		 3,		 4,		 4 },
-		{ 0,     1,      2,      4,      2 },
-		{ 0,     0,      1,      4,      3 },
-		{ 0,     0,      0,      1,      4 },
-		{ 0,     0,      0,      0,      1 }
-	}
-	};
-
-	Matrix<F> poly(1, 5, { 1, 4, 0, 0, 0 } );
-	MatrixView<F> init(&inits[0][0][0], 5, 5);
-
-	std::vector< Matrix<F> > matrices(4);
-	std::vector< MatrixView<F> > matrices_view(4);
-	for (int i = 0; i < 4; i++) {
-		poly[0] = i + 1;
-		init.values = &inits[i][0][0];
-		
-		SobolMatrix<F> S(15, poly.view(), init);
-		matrices[i] = S.view(); // copy
-		matrices_view[i] = matrices[i].view();
-	}
-
-
-	std::vector<double> pts = get_points<F>(&matrices_view[0], matrices_view.size(), n_pts);
-	double stardisc = star_discrepancy(&pts[0], n_pts, matrices_view.size());
-	
-
-	print_point_range(&pts[0], n_pts, matrices_view.size());
-	std::cout << "n_pts: "<<n_pts<<", star discrepancy="<< stardisc << std::endl;
-
-	double gl2disc = generalized_l2_discrepancy(&pts[0], n_pts, matrices_view.size());
-	std::cout << "n_pts: " << n_pts << ", generalized l2 discrepancy=" << gl2disc << std::endl;
-
-	plot_discrepancy_svg(&matrices_view[0], matrices_view.size(), 1, 6, 1 / 4., DISCREPANCY_GENERALIZED_L2, "plot_disc.svg");
-}
 
 
 void test_owen() {
 
 
 	typedef GF5 F;
-	typedef F::T T;
+	typedef typename F::T T;
 
 	const int m = 7;
 	const int dim = 3;
-	const int base = std::pow((double)F::p, F::r);
+	const int base = std::pow((int)F::p, (int) F::r);
 	const int n_pts = std::pow(base, m);
 
 	// 3 matrices from Victor. t={0, 1, 1, 1, 1, 2, 3, 2}
@@ -388,8 +313,8 @@ void test_owen() {
 	std::vector<double> scrambled(n_pts * dim);
 	apply_owen_permutation_real(&pts[0], &scrambled[0], n_pts, dim, m+3, tree);
 
-	int t_before = t_factor_pointset(&pts[0], n_pts, dim, base);
-	int t_after = t_factor_pointset(&scrambled[0], n_pts, dim, base);
+	int t_before = t_value_pointset(&pts[0], n_pts, dim, base);
+	int t_after = t_value_pointset(&scrambled[0], n_pts, dim, base);
 	int t_matrix = t_vals[m-1];
 	std::cout << "t value according to matrix : " << t_matrix << std::endl;
 	std::cout << "t value according to point set : " << t_before << std::endl;
@@ -400,6 +325,98 @@ void test_owen() {
 	std::cout << "generalized l2 discrepancy after scrambling: " << gl2disc_after << std::endl;
 
 }
+
+
+void test_plot_discrepancy() {
+
+	typedef GF2 F;
+	typedef typename F::T T;
+	enum { base = GFCardinality<F::p, F::r>::value };
+
+	const int max_m = 9;
+	const int dim = 5;
+	const int max_n_pts = std::pow((double)base, max_m); //4.5 => 20 s
+	const int nb_owen = 32;
+
+	
+	std::vector< Matrix<GF2> > matricesJoeKuo(dim);
+	std::vector< MatrixView<GF2> > matricesJoeKuo_view(dim);
+	for (int i = 0; i < dim; i++) {
+		SobolMatrix<GF2> sobol(SOBOL_JOE_KUO_GF2, i, 25);
+		matricesJoeKuo[i] = sobol.view(); // copy
+		matricesJoeKuo_view[i] = matricesJoeKuo[i].view();
+	}
+
+
+	std::vector<double> pts = get_points<F>(&matricesJoeKuo_view[0], matricesJoeKuo_view.size(), max_n_pts);
+
+	DiscrepancyCurve curve_star, curve_gl2;
+	std::vector<double> discrepancies;
+	for (double m = 1; m <= max_m; m += 1. / 8.) {
+
+		const int n_pts = std::pow((double)base, m);
+
+		double avg_star_disc = 0;
+		double avg_gl2_disc = 0;
+		
+#pragma omp parallel for reduction(+:avg_gl2_disc)	reduction(+:avg_star_disc)	
+		for (int i = 0; i < nb_owen; i++) {
+			std::vector<double> scrambled(n_pts* dim);
+			OwenTreeND tree = make_random_owen_tree_nd(dim, base, std::ceil(m), 12345+i*123);			
+			apply_owen_permutation_real(&pts[0], &scrambled[0], n_pts, dim, std::ceil(m), tree);
+			padd_least_significant_digits(&scrambled[0], n_pts, dim, base, std::ceil(m), 123456+i*456);
+
+			double stardisc = star_discrepancy(&scrambled[0], n_pts, dim);
+			double gl2disc = generalized_l2_discrepancy(&scrambled[0], n_pts, dim);
+
+			avg_star_disc += stardisc;
+			avg_gl2_disc += gl2disc;
+			
+		}
+		avg_star_disc /= nb_owen;
+		avg_gl2_disc /= nb_owen;
+
+		curve_star.values.push_back(avg_star_disc);
+		curve_gl2.values.push_back(avg_gl2_disc);
+
+		//curve.show_points = false;
+		curve_star.n_points.push_back(n_pts);
+		curve_gl2.n_points.push_back(n_pts);
+	}
+	curve_star.label = "Star discrepancy";
+	curve_gl2.label = "Generalized l2 discrepancy";
+
+	std::vector< DiscrepancyCurve> curves;
+	curves.push_back(curve_star);
+	curves.push_back(curve_gl2);
+
+	std::vector< ReferenceCurveSpec > refs;
+	ReferenceCurveSpec r1;
+	r1.label = "N^{-1/2}";
+	r1.exponent = 0.5;
+	r1.dashed = true;
+	refs.push_back(r1);
+
+	ReferenceCurveSpec r2;
+	r2.label = "N^{-1}";
+	r2.exponent = 1.0;
+	r2.dashed = true;
+	r2.color = "#6CA87A";
+	refs.push_back(r2);
+
+	DiscrepancyPlotOptions opt;
+	opt.title = "5D Star vs. Generalized L2 discrepancies (Joe &amp; Kuo Sobol)";
+	opt.x_label = "Number of points N";
+	opt.y_label = "Discrepancy value";
+	opt.base = base;
+	opt.x_tick_octave_step = 1.0;
+	opt.y_scale = PLOT_Y_LOG10;
+
+	plot_discrepancy_curves_svg(curves, refs, opt, "star_vs_l2_discrepancy.svg");
+}
+
+
+
 
 
 int main() {
@@ -422,9 +439,12 @@ int main() {
 
 	test_draw_points();	
 
-	test_discrepancy();	
-
 	test_owen();
+
+	test_plot_discrepancy();	// about 5 minutes on my machine.
+
+	
+
 
 	return 0;
 };

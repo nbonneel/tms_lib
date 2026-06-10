@@ -1,11 +1,12 @@
 #include "tms_lib.h"
 
-#include <cmath>
 #include <limits>
 #include <cstdio>
-#include <cstring>
 #include <random>
 #include <unordered_map>
+
+#include <cstdint>
+#include <cstdio>
 
 #if defined(_MSC_VER)
 #include <intrin.h>
@@ -335,23 +336,6 @@ inline double clamp_discrepancy_square(double x) {
 
 
 
-inline double gl2_kernel_soa_runtime(const double* Y,
-    int npts,
-    int dim,
-    int i,
-    int k) {
-    double prod = 1.0;
-
-    for (int d = 0; d < dim; ++d) {
-        const double yi = Y[d * npts + i];
-        const double yk = Y[d * npts + k];
-        prod *= yi < yk ? yi : yk;
-    }
-
-    return prod;
-}
-
-
 
 inline double sanitize_unit_coord(double x) {
     assert(std::isfinite(x));
@@ -368,10 +352,12 @@ inline double sanitize_unit_coord(double x) {
 }
 
 
-double generalized_l2_discrepancy_squared_exact_runtime(
+
+
+double generalized_l2_discrepancy_squared_exact_runtime_aos(
     const double* points,
     int npts,
-    int dim,
+    size_t dim,
     int block_size = 64
 ) {
     assert(points != 0);
@@ -381,44 +367,51 @@ double generalized_l2_discrepancy_squared_exact_runtime(
 
     const double invN = 1.0 / double(npts);
 
-    std::vector<double> Y(size_t(dim) * size_t(npts));
+    // AoS layout:
+    // Y[i * dim + d] = 2 - points[i * dim + d]
+    std::vector<double> Y(std::size_t(npts) * std::size_t(dim));
 
 #pragma omp parallel for
     for (int i = 0; i < npts; ++i) {
+        const double* p = points + std::size_t(i) * std::size_t(dim);
+        double* y = Y.data() + std::size_t(i) * std::size_t(dim);
+
         for (int d = 0; d < dim; ++d) {
-            const double x = points[i * dim + d];
-            Y[d * npts + i] = 2.0 - x;
+            y[d] = 2.0 - p[d];
         }
     }
 
-    long double term0 = 1.0L;
+    double term0 = 1.0;
     for (int d = 0; d < dim; ++d) {
-        term0 *= 4.0L / 3.0L;
+        term0 *= 4.0 / 3.0;
     }
 
-    long double term1_sum = 0.0L;
+    double term1_sum = 0.0;
 
 #pragma omp parallel for reduction(+:term1_sum)
     for (int i = 0; i < npts; ++i) {
-        long double prod = 1.0L;
+        const double* y = Y.data() + std::size_t(i) * std::size_t(dim);
+
+        double prod = 1.0;
 
         for (int d = 0; d < dim; ++d) {
-            const double y = Y[d * npts + i];
-            const double x = 2.0 - y;
-            prod *= 0.5L * (3.0L - long double(x) * long double(x));
+            const double x = 2.0 - y[d];
+            prod *= 0.5 * (3.0 - x * x);
         }
 
         term1_sum += prod;
     }
 
-    long double term2_diag = 0.0L;
+    double term2_diag = 0.0;
 
 #pragma omp parallel for reduction(+:term2_diag)
     for (int i = 0; i < npts; ++i) {
-        long double prod = 1.0L;
+        const double* y = Y.data() + std::size_t(i) * dim;
+
+        double prod = 1.0;
 
         for (int d = 0; d < dim; ++d) {
-            prod *= Y[d * npts + i];
+            prod *= y[d];
         }
 
         term2_diag += prod;
@@ -426,52 +419,71 @@ double generalized_l2_discrepancy_squared_exact_runtime(
 
     const int nb = (npts + block_size - 1) / block_size;
 
-    long double term2_upper = 0.0L;
+    double term2_upper = 0.0;
 
 #pragma omp parallel for schedule(dynamic, 1) reduction(+:term2_upper)
     for (int bi = 0; bi < nb; ++bi) {
         const int i0 = bi * block_size;
         const int i1 = std::min(i0 + block_size, npts);
 
-        long double local = 0.0L;
+        double local = 0.0;
 
-        for (int bj = bi; bj < nb; ++bj) {
+
+		for (size_t i = i0; i < i1; ++i) {
+			const double* yi = Y.data() + i * dim;
+
+			for (size_t k = i + 1; k < i1; ++k) {
+				const double* yk = Y.data() + k * dim;
+
+				double prod = 1.0;
+				for (size_t d = 0; d < dim; ++d) {
+					const double a = yi[d];
+					const double b = yk[d];
+					prod *= a < b ? a : b;
+				}
+				local += prod;
+			}
+		}
+        
+
+        for (int bj = bi+1; bj < nb; ++bj) {
             const int k0 = bj * block_size;
             const int k1 = std::min(k0 + block_size, npts);
 
-            if (bi == bj) {
-                for (int i = i0; i < i1; ++i) {
-                    for (int k = i + 1; k < i1; ++k) {
-                        local += gl2_kernel_soa_runtime(
-                            Y.data(), npts, dim, i, k
-                        );
+                for (size_t i = i0; i < i1; ++i) {
+                    const double* yi = Y.data() + i *dim;
+
+                    for (size_t k = k0; k < k1; ++k) {
+                        const double* yk = Y.data() + k * dim;
+
+                        double prod = 1.0;
+                        for (size_t d = 0; d < dim; ++d) { 
+                            const double a = yi[d];
+                            const double b = yk[d];
+                            prod *= a < b ? a : b;
+                        }
+
+                        local += prod;
                     }
-                }
-            }
-            else {
-                for (int i = i0; i < i1; ++i) {
-                    for (int k = k0; k < k1; ++k) {
-                        local += gl2_kernel_soa_runtime(
-                            Y.data(), npts, dim, i, k
-                        );
-                    }
-                }
-            }
+                }            
         }
 
         term2_upper += local;
     }
 
-    const long double term2_sum =
-        term2_diag + 2.0L * term2_upper;
+    const double term2_sum = term2_diag + 2.0 * term2_upper;
 
-    const long double d2 =
+    const double d2 =
         term0
-        - 2.0L * invN * term1_sum
-        + long double(invN) * long double(invN) * term2_sum;
+        - 2.0 * invN * term1_sum
+        + invN * invN * term2_sum;
 
-    return clamp_discrepancy_square(double(d2));
+    return clamp_discrepancy_square(d2);
 }
+
+
+
+
 
 // O(n^2 d)
 double generalized_l2_discrepancy(const double* points,
@@ -479,7 +491,7 @@ double generalized_l2_discrepancy(const double* points,
     int dim,
     int block_size) {
     return std::sqrt(
-        generalized_l2_discrepancy_squared_exact_runtime(
+        generalized_l2_discrepancy_squared_exact_runtime_aos(
             points,
             npts,
             dim,
@@ -1458,14 +1470,9 @@ inline void svg_circle(FILE* f,
         cx, cy, r, fill, stroke);
 }
 
-#include <vector>
-#include <algorithm>
-#include <cassert>
-#include <cmath>
-#include <cstdint>
-#include <cstdio>
 
-inline uint64_t ipow_u64_checked(int base, int exp) {
+
+uint64_t ipow_u64_checked(int base, int exp) {
     assert(base >= 2);
     assert(exp >= 0);
 
@@ -1539,7 +1546,7 @@ inline uint64_t box_cell_from_double(double x,
     return cell;
 }
 
-bool test_t_factor_pointset_real_sorted(const double* points,
+bool test_t_value_pointset_real_sorted(const double* points,
     int npts,
     int dim,
     int stride_dim,
@@ -1664,7 +1671,7 @@ bool test_t_factor_pointset_real_sorted(const double* points,
 }
 
 
-int t_factor_pointset(const double* points,
+int t_value_pointset(const double* points,
     int npts,
     int dim,
     int stride_dim,
@@ -1691,7 +1698,7 @@ int t_factor_pointset(const double* points,
             std::printf("testing t=%d\n", t);
         }
 
-        if (test_t_factor_pointset_real_sorted(points,
+        if (test_t_value_pointset_real_sorted(points,
             npts,
             dim,
             stride_dim,
@@ -1705,12 +1712,12 @@ int t_factor_pointset(const double* points,
     return m;
 }
 
-int t_factor_pointset(const double* points,
+int t_value_pointset(const double* points,
     int npts,
     int dim,
     int base,
     bool dbg) {
-    return t_factor_pointset(points, npts, dim, dim, base, dbg);
+    return t_value_pointset(points, npts, dim, dim, base, dbg);
 }
 
 
@@ -1860,7 +1867,7 @@ double apply_owen_1d_real(double x,
     int m) {
     assert(tree.base >= 2);
     assert(m >= 0);
-    assert(check_owen_tree_1d(tree));
+    //assert(check_owen_tree_1d(tree));
 
     const int base = tree.base;
     const uint64_t scale = ipow_u64_checked(base, m);
@@ -1919,7 +1926,7 @@ void apply_owen_permutation_real(const double* points_in,
     assert(stride_in >= dim);
     assert(stride_out >= dim);
     assert(tree.dim == dim);
-    assert(check_owen_tree_nd(tree));
+    //assert(check_owen_tree_nd(tree));
 
     for (int i = 0; i < npts; ++i) {
         for (int d = 0; d < dim; ++d) {
@@ -1947,4 +1954,691 @@ void apply_owen_permutation_real(const double* points_in,
         dim,
         m,
         tree);
+}
+
+void padd_least_significant_digits(double* pts, long long n_pts, int dim, int base, int m, long long seed) {
+
+    std::mt19937_64 engine;
+    engine.seed(seed);
+    std::uniform_real_distribution<double> unif(0, 1);
+
+    double scale = std::pow((double)base, -m);
+
+    for (int i = 0; i < n_pts * dim; i++) {
+        pts[i] += unif(engine) * scale;
+    }
+
+}
+
+
+///////////////////// plotting routines
+
+
+
+inline double plot_clamp_positive(double x) {
+    return x > 1e-300 ? x : 1e-300;
+}
+
+inline void plot_format_integer_label(long long v, char* out, int out_size) {
+    if (v < 1000000LL) {
+        std::snprintf(out, out_size, "%lld", v);
+    }
+    else {
+        std::snprintf(out, out_size, "%.3g", double(v));
+    }
+}
+
+inline bool plot_is_nearly_integer(double x, double eps = 1e-9) {
+    return std::fabs(x - std::round(x)) <= eps;
+}
+
+inline void plot_svg_text(FILE* f,
+    double x,
+    double y,
+    const char* text,
+    int font_size = 12,
+    const char* anchor = "middle",
+    const char* fill = "#333333") {
+    std::fprintf(f,
+        "<text x=\"%.3f\" y=\"%.3f\" "
+        "font-family=\"Arial, Helvetica, sans-serif\" "
+        "font-size=\"%d\" text-anchor=\"%s\" fill=\"%s\">%s</text>\n",
+        x, y, font_size, anchor, fill, text);
+}
+
+inline void plot_svg_line(FILE* f,
+    double x1,
+    double y1,
+    double x2,
+    double y2,
+    const char* stroke,
+    double width = 1.0,
+    double opacity = 1.0,
+    const char* extra = "") {
+    std::fprintf(f,
+        "<line x1=\"%.3f\" y1=\"%.3f\" x2=\"%.3f\" y2=\"%.3f\" "
+        "stroke=\"%s\" stroke-width=\"%.3f\" stroke-opacity=\"%.3f\" %s/>\n",
+        x1, y1, x2, y2, stroke, width, opacity, extra);
+}
+
+inline void plot_svg_circle(FILE* f,
+    double cx,
+    double cy,
+    double r,
+    const char* fill,
+    const char* stroke = "#333333",
+    double fill_opacity = 1.0,
+    double stroke_opacity = 1.0) {
+    std::fprintf(f,
+        "<circle cx=\"%.3f\" cy=\"%.3f\" r=\"%.3f\" "
+        "fill=\"%s\" fill-opacity=\"%.3f\" "
+        "stroke=\"%s\" stroke-opacity=\"%.3f\" stroke-width=\"1\"/>\n",
+        cx, cy, r, fill, fill_opacity, stroke, stroke_opacity);
+}
+
+inline const char* plot_default_ref_color(int idx) {
+    static const char* colors[4] = {
+        "#D36C6C",
+        "#6C8CD3",
+        "#6CA87A",
+        "#888888"
+    };
+    return colors[idx % 4];
+}
+
+inline std::string plot_resolve_group_key(const DiscrepancyCurve& c, int idx) {
+    if (!c.legend_group.empty()) {
+        return c.legend_group;
+    }
+    if (!c.label.empty()) {
+        return c.label;
+    }
+
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "__curve_%d", idx);
+    return std::string(buf);
+}
+
+inline int plot_find_string(const std::vector<std::string>& arr, const std::string& s) {
+    for (int i = 0; i < (int)arr.size(); ++i) {
+        if (arr[i] == s) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+bool plot_discrepancy_curves_svg(
+    const std::vector<DiscrepancyCurve>& curves,
+    const std::vector<ReferenceCurveSpec>& refs,
+    const DiscrepancyPlotOptions& opt,
+    const char* filename)
+{
+    assert(filename != 0);
+    assert(opt.base >= 2);
+
+    if (curves.empty()) {
+        return false;
+    }
+
+    struct ResolvedCurve {
+        const DiscrepancyCurve* src;
+        std::string color;
+        double stroke_width;
+        double opacity;
+        double point_radius;
+        double point_opacity;
+        std::string group_key;
+        std::string legend_label;
+    };
+
+    std::vector<ResolvedCurve> rc;
+    rc.reserve(curves.size());
+
+    std::vector<std::string> group_keys_seen;
+    std::vector<std::string> group_colors;
+
+    for (int i = 0; i < (int)curves.size(); ++i) {
+        const DiscrepancyCurve& c = curves[i];
+
+        if (c.n_points.size() != c.values.size()) {
+            return false;
+        }
+
+        std::string group_key = plot_resolve_group_key(c, i);
+        int group_idx = plot_find_string(group_keys_seen, group_key);
+
+        if (group_idx < 0) {
+            group_idx = (int)group_keys_seen.size();
+            group_keys_seen.push_back(group_key);
+
+            if (!c.color.empty()) {
+                group_colors.push_back(c.color);
+            }
+            else {
+                group_colors.push_back(opt.default_palette[group_idx % opt.default_palette.size()]);
+            }
+        }
+
+        ResolvedCurve r;
+        r.src = &c;
+        r.group_key = group_key;
+        r.legend_label = !c.legend_group.empty() ? c.legend_group : c.label;
+        r.color = !c.color.empty() ? c.color : group_colors[group_idx];
+        r.stroke_width = (c.stroke_width > 0.0) ? c.stroke_width : opt.default_curve_width;
+        r.opacity = c.opacity;
+        r.point_radius = c.point_radius;
+        r.point_opacity = c.point_opacity;
+
+        rc.push_back(r);
+    }
+
+    double xmin = std::numeric_limits<double>::infinity();
+    double xmax = -std::numeric_limits<double>::infinity();
+    double ymin = std::numeric_limits<double>::infinity();
+    double ymax = -std::numeric_limits<double>::infinity();
+
+    bool found_data = false;
+
+    for (int i = 0; i < (int)curves.size(); ++i) {
+        const DiscrepancyCurve& c = curves[i];
+
+        for (int k = 0; k < (int)c.n_points.size(); ++k) {
+            const long long N = c.n_points[k];
+            const double y = c.values[k];
+
+            if (N <= 0) {
+                continue;
+            }
+
+            const double x = std::log(double(N)) / std::log(double(opt.base));
+
+            xmin = std::min(xmin, x);
+            xmax = std::max(xmax, x);
+
+            if (opt.y_scale == PLOT_Y_LOG10) {
+                if (y > 0.0) {
+                    ymin = std::min(ymin, y);
+                    ymax = std::max(ymax, y);
+                    found_data = true;
+                }
+            }
+            else {
+                ymin = std::min(ymin, y);
+                ymax = std::max(ymax, y);
+                found_data = true;
+            }
+        }
+    }
+
+    if (!found_data || !std::isfinite(xmin) || !std::isfinite(xmax)) {
+        return false;
+    }
+
+    if (xmax <= xmin) {
+        xmax = xmin + 1.0;
+    }
+
+    double anchor_N = -1.0;
+    double anchor_y = -1.0;
+
+    for (int i = 0; i < (int)curves.size() && anchor_N <= 0.0; ++i) {
+        const DiscrepancyCurve& c = curves[i];
+
+        for (int k = 0; k < (int)c.n_points.size(); ++k) {
+            if (c.n_points[k] > 0 && c.values[k] > 0.0) {
+                anchor_N = double(c.n_points[k]);
+                anchor_y = c.values[k];
+                break;
+            }
+        }
+    }
+
+    if (anchor_N <= 0.0 || anchor_y <= 0.0) {
+        anchor_N = std::pow(double(opt.base), xmin);
+        anchor_y = 1.0;
+    }
+
+    struct ResolvedReference {
+        const ReferenceCurveSpec* src;
+        std::string color;
+        double stroke_width;
+        double scale;
+    };
+
+    std::vector<ResolvedReference> rr;
+    rr.reserve(refs.size());
+
+    for (int i = 0; i < (int)refs.size(); ++i) {
+        const ReferenceCurveSpec& r = refs[i];
+
+        ResolvedReference z;
+        z.src = &r;
+        z.color = !r.color.empty() ? r.color : plot_default_ref_color(i);
+        z.stroke_width = (r.stroke_width > 0.0) ? r.stroke_width : opt.default_ref_width;
+
+        if (r.scale > 0.0) {
+            z.scale = r.scale;
+        }
+        else {
+            z.scale = anchor_y * std::pow(anchor_N, r.exponent);
+        }
+
+        rr.push_back(z);
+
+        const int nref_samples = 128;
+        for (int t = 0; t < nref_samples; ++t) {
+            const double alpha = (nref_samples == 1) ? 0.0 : double(t) / double(nref_samples - 1);
+            const double x = xmin + alpha * (xmax - xmin);
+            const double N = std::pow(double(opt.base), x);
+            const double y = z.scale * std::pow(N, -r.exponent);
+
+            if (opt.y_scale == PLOT_Y_LOG10) {
+                if (y > 0.0) {
+                    ymin = std::min(ymin, y);
+                    ymax = std::max(ymax, y);
+                }
+            }
+            else {
+                ymin = std::min(ymin, y);
+                ymax = std::max(ymax, y);
+            }
+        }
+    }
+
+    if (opt.y_scale == PLOT_Y_LOG10) {
+        ymin = plot_clamp_positive(ymin);
+        ymax = plot_clamp_positive(ymax);
+
+        double lymin = safe_log10(ymin);
+        double lymax = safe_log10(ymax);
+
+        if (lymax <= lymin) {
+            lymax = lymin + 1.0;
+        }
+
+        const double pad = 0.08 * (lymax - lymin);
+        lymin -= pad;
+        lymax += pad;
+
+        ymin = std::pow(10.0, lymin);
+        ymax = std::pow(10.0, lymax);
+    }
+    else {
+        if (ymax <= ymin) {
+            ymax = ymin + 1.0;
+        }
+
+        const double pad = 0.08 * (ymax - ymin);
+        ymin -= pad;
+        ymax += pad;
+    }
+
+    const double plot_x0 = opt.left_margin;
+    const double plot_y0 = opt.top_margin;
+    const double plot_w = double(opt.width) - opt.left_margin - opt.right_margin;
+    const double plot_h = double(opt.height) - opt.top_margin - opt.bottom_margin;
+    const double plot_x1 = plot_x0 + plot_w;
+    const double plot_y1 = plot_y0 + plot_h;
+
+    auto map_x = [&](double x) -> double {
+        return plot_x0 + (x - xmin) / (xmax - xmin) * plot_w;
+        };
+
+    auto map_y = [&](double y) -> double {
+        if (opt.y_scale == PLOT_Y_LOG10) {
+            const double ly = safe_log10(plot_clamp_positive(y));
+            const double lymin = safe_log10(ymin);
+            const double lymax = safe_log10(ymax);
+            return plot_y1 - (ly - lymin) / (lymax - lymin) * plot_h;
+        }
+        else {
+            return plot_y1 - (y - ymin) / (ymax - ymin) * plot_h;
+        }
+        };
+
+    FILE* f = std::fopen(filename, "w");
+    if (!f) {
+        return false;
+    }
+
+    std::fprintf(f,
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" "
+        "version=\"1.1\" width=\"%d\" height=\"%d\" "
+        "viewBox=\"0 0 %d %d\">\n",
+        opt.width, opt.height, opt.width, opt.height);
+
+    std::fprintf(f,
+        "<rect x=\"0\" y=\"0\" width=\"%d\" height=\"%d\" fill=\"#ffffff\"/>\n",
+        opt.width, opt.height);
+
+    std::fprintf(f,
+        "<rect x=\"%.3f\" y=\"%.3f\" width=\"%.3f\" height=\"%.3f\" "
+        "fill=\"#fbfbfb\" stroke=\"#cccccc\" stroke-width=\"1\"/>\n",
+        plot_x0, plot_y0, plot_w, plot_h);
+
+    if (!opt.title.empty()) {
+        plot_svg_text(f,
+            opt.width * 0.5,
+            28.0,
+            opt.title.c_str(),
+            opt.title_font_size,
+            "middle",
+            "#222222");
+    }
+
+    if (opt.draw_grid) {
+        for (double xt = std::ceil(xmin / opt.x_tick_octave_step) * opt.x_tick_octave_step;
+            xt <= xmax + 1e-12;
+            xt += opt.x_tick_octave_step)
+        {
+            const double x = map_x(xt);
+            plot_svg_line(f, x, plot_y0, x, plot_y1, "#e0e0e0", 1.0, 1.0);
+        }
+
+        if (opt.y_scale == PLOT_Y_LOG10) {
+            const double lymin = safe_log10(ymin);
+            const double lymax = safe_log10(ymax);
+
+            const int emin = (int)std::ceil(lymin);
+            const int emax = (int)std::floor(lymax);
+
+            for (int e = emin; e <= emax; e += std::max(1, opt.y_log10_tick_step)) {
+                const double yv = std::pow(10.0, double(e));
+                const double y = map_y(yv);
+                plot_svg_line(f, plot_x0, y, plot_x1, y, "#e0e0e0", 1.0, 1.0);
+            }
+        }
+        else {
+            if (opt.y_linear_tick_step > 0.0) {
+                const double first_tick = std::ceil(ymin / opt.y_linear_tick_step) * opt.y_linear_tick_step;
+                for (double yt = first_tick; yt <= ymax + 1e-12; yt += opt.y_linear_tick_step) {
+                    const double y = map_y(yt);
+                    plot_svg_line(f, plot_x0, y, plot_x1, y, "#e0e0e0", 1.0, 1.0);
+                }
+            }
+        }
+    }
+
+    plot_svg_line(f, plot_x0, plot_y1, plot_x1, plot_y1, "#333333", 1.4, 1.0);
+    plot_svg_line(f, plot_x0, plot_y0, plot_x0, plot_y1, "#333333", 1.4, 1.0);
+
+    for (double xt = std::ceil(xmin / opt.x_tick_octave_step) * opt.x_tick_octave_step;
+        xt <= xmax + 1e-12;
+        xt += opt.x_tick_octave_step)
+    {
+        const double x = map_x(xt);
+
+        plot_svg_line(f, x, plot_y1, x, plot_y1 + 5.0, "#333333", 1.0, 1.0);
+
+        bool draw_label = true;
+        if (opt.x_tick_label_only_integer_octaves && !plot_is_nearly_integer(xt)) {
+            draw_label = false;
+        }
+
+        if (draw_label) {
+            char label[64];
+
+            if (opt.x_tick_label_as_counts) {
+                const long long N = plot_is_nearly_integer(xt)
+                    ? integer_power_clamped(opt.base, (int)std::llround(xt))
+                    : (long long)std::floor(std::pow(double(opt.base), xt) + 0.5);
+
+                plot_format_integer_label(N, label, sizeof(label));
+            }
+            else {
+                std::snprintf(label, sizeof(label), "%.3g", xt);
+            }
+
+            plot_svg_text(f, x, plot_y1 + 22.0, label,
+                opt.tick_font_size, "middle", "#333333");
+        }
+    }
+
+    if (opt.y_scale == PLOT_Y_LOG10) {
+        const double lymin = safe_log10(ymin);
+        const double lymax = safe_log10(ymax);
+
+        const int emin = (int)std::ceil(lymin);
+        const int emax = (int)std::floor(lymax);
+
+        for (int e = emin; e <= emax; e += std::max(1, opt.y_log10_tick_step)) {
+            const double yv = std::pow(10.0, double(e));
+            const double y = map_y(yv);
+
+            plot_svg_line(f, plot_x0 - 5.0, y, plot_x0, y, "#333333", 1.0, 1.0);
+
+            char label[64];
+            std::snprintf(label, sizeof(label), "1e%d", e);
+
+            plot_svg_text(f, plot_x0 - 10.0, y + 4.0, label,
+                opt.tick_font_size, "end", "#333333");
+        }
+    }
+    else if (opt.y_linear_tick_step > 0.0) {
+        const double first_tick = std::ceil(ymin / opt.y_linear_tick_step) * opt.y_linear_tick_step;
+
+        for (double yt = first_tick; yt <= ymax + 1e-12; yt += opt.y_linear_tick_step) {
+            const double y = map_y(yt);
+
+            plot_svg_line(f, plot_x0 - 5.0, y, plot_x0, y, "#333333", 1.0, 1.0);
+
+            char label[64];
+            std::snprintf(label, sizeof(label), "%.3g", yt);
+
+            plot_svg_text(f, plot_x0 - 10.0, y + 4.0, label,
+                opt.tick_font_size, "end", "#333333");
+        }
+    }
+
+    if (!opt.x_label.empty()) {
+        plot_svg_text(f,
+            plot_x0 + plot_w * 0.5,
+            opt.height - 28.0,
+            opt.x_label.c_str(),
+            opt.axis_font_size,
+            "middle",
+            "#222222");
+    }
+
+    if (!opt.y_label.empty()) {
+        std::fprintf(f,
+            "<text x=\"24\" y=\"%.3f\" "
+            "font-family=\"Arial, Helvetica, sans-serif\" "
+            "font-size=\"%d\" text-anchor=\"middle\" fill=\"#222222\" "
+            "transform=\"rotate(-90 24 %.3f)\">%s</text>\n",
+            plot_y0 + plot_h * 0.5,
+            opt.axis_font_size,
+            plot_y0 + plot_h * 0.5,
+            opt.y_label.c_str());
+    }
+
+    for (int i = 0; i < (int)rr.size(); ++i) {
+        const ResolvedReference& r = rr[i];
+        const int nref_samples = 128;
+
+        std::fprintf(f,
+            "<polyline fill=\"none\" stroke=\"%s\" stroke-width=\"%.3f\" "
+            "stroke-opacity=\"%.3f\" ",
+            r.color.c_str(),
+            r.stroke_width,
+            r.src->opacity);
+
+        if (r.src->dashed) {
+            std::fprintf(f, "stroke-dasharray=\"%s\" ",
+                r.src->dash_array.c_str());
+        }
+
+        std::fprintf(f, "points=\"");
+
+        for (int t = 0; t < nref_samples; ++t) {
+            const double alpha = (nref_samples == 1) ? 0.0 : double(t) / double(nref_samples - 1);
+            const double xlog = xmin + alpha * (xmax - xmin);
+            const double N = std::pow(double(opt.base), xlog);
+            const double y = r.scale * std::pow(N, -r.src->exponent);
+
+            std::fprintf(f, "%.3f,%.3f ", map_x(xlog), map_y(y));
+        }
+
+        std::fprintf(f, "\"/>\n");
+    }
+
+    for (int i = 0; i < (int)rc.size(); ++i) {
+        const ResolvedCurve& r = rc[i];
+        const DiscrepancyCurve& c = *r.src;
+
+        if (c.n_points.empty()) {
+            continue;
+        }
+
+        std::fprintf(f,
+            "<polyline fill=\"none\" stroke=\"%s\" stroke-width=\"%.3f\" "
+            "stroke-opacity=\"%.3f\" ",
+            r.color.c_str(),
+            r.stroke_width,
+            r.opacity);
+
+        if (c.dashed) {
+            std::fprintf(f, "stroke-dasharray=\"%s\" ", c.dash_array.c_str());
+        }
+
+        std::fprintf(f, "stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"");
+
+        for (int k = 0; k < (int)c.n_points.size(); ++k) {
+            if (c.n_points[k] <= 0) {
+                continue;
+            }
+
+            const double xlog = std::log(double(c.n_points[k])) / std::log(double(opt.base));
+            const double y = c.values[k];
+
+            std::fprintf(f, "%.3f,%.3f ", map_x(xlog), map_y(y));
+        }
+
+        std::fprintf(f, "\"/>\n");
+
+        if (c.show_points) {
+            for (int k = 0; k < (int)c.n_points.size(); ++k) {
+                if (c.n_points[k] <= 0) {
+                    continue;
+                }
+
+                const double xlog = std::log(double(c.n_points[k])) / std::log(double(opt.base));
+                const double y = c.values[k];
+
+                std::fprintf(f,
+                    "<circle cx=\"%.3f\" cy=\"%.3f\" r=\"%.3f\" "
+                    "fill=\"%s\" fill-opacity=\"%.3f\" "
+                    "stroke=\"#2f2f2f\" stroke-opacity=\"%.3f\" stroke-width=\"1\">",
+                    map_x(xlog), map_y(y),
+                    r.point_radius,
+                    r.color.c_str(),
+                    r.point_opacity,
+                    std::min(1.0, r.opacity + 0.1));
+
+                std::fprintf(f,
+                    "<title>N=%lld, value=%.12g</title>",
+                    c.n_points[k], c.values[k]);
+
+                std::fprintf(f, "</circle>\n");
+            }
+        }
+    }
+
+    if (opt.draw_legend) {
+        struct LegendEntry {
+            std::string label;
+            std::string color;
+            double width;
+            double opacity;
+            bool dashed;
+            std::string dash_array;
+        };
+
+        std::vector<LegendEntry> legend_entries;
+        std::vector<std::string> legend_keys;
+
+        for (int i = 0; i < (int)rc.size(); ++i) {
+            const ResolvedCurve& r = rc[i];
+            const DiscrepancyCurve& c = *r.src;
+
+            if (!c.show_in_legend) {
+                continue;
+            }
+
+            const std::string key = r.group_key;
+            if (plot_find_string(legend_keys, key) >= 0) {
+                continue;
+            }
+
+            legend_keys.push_back(key);
+
+            LegendEntry e;
+            e.label = !r.legend_label.empty() ? r.legend_label : key;
+            e.color = r.color;
+            e.width = r.stroke_width;
+            e.opacity = r.opacity;
+            e.dashed = c.dashed;
+            e.dash_array = c.dash_array;
+
+            legend_entries.push_back(e);
+        }
+
+        for (int i = 0; i < (int)rr.size(); ++i) {
+            const ResolvedReference& r = rr[i];
+
+            if (!r.src->show_in_legend) {
+                continue;
+            }
+
+            LegendEntry e;
+            e.label = r.src->label.empty() ? "Reference" : r.src->label;
+            e.color = r.color;
+            e.width = r.stroke_width;
+            e.opacity = r.src->opacity;
+            e.dashed = r.src->dashed;
+            e.dash_array = r.src->dash_array;
+
+            legend_entries.push_back(e);
+        }
+
+        if (!legend_entries.empty()) {
+            const double row_h = 19.0;
+            const double legend_w = 290.0;
+            const double legend_h = 16.0 + row_h * legend_entries.size();
+
+            const double lx = plot_x1 - legend_w - 12.0;
+            const double ly = plot_y0 + 12.0;
+
+            std::fprintf(f,
+                "<rect x=\"%.3f\" y=\"%.3f\" width=\"%.3f\" height=\"%.3f\" "
+                "rx=\"6\" ry=\"6\" fill=\"#ffffff\" stroke=\"#d0d0d0\"/>\n",
+                lx, ly, legend_w, legend_h);
+
+            for (int i = 0; i < (int)legend_entries.size(); ++i) {
+                const LegendEntry& e = legend_entries[i];
+                const double yy = ly + 16.0 + i * row_h;
+
+                plot_svg_line(f, lx + 12.0, yy, lx + 48.0, yy,
+                    e.color.c_str(), e.width, e.opacity,
+                    e.dashed ? (std::string("stroke-dasharray=\"") + e.dash_array + "\"").c_str() : "");
+
+                plot_svg_circle(f, lx + 30.0, yy, 3.0,
+                    e.color.c_str(), "#2f2f2f",
+                    std::min(1.0, e.opacity + 0.1),
+                    std::min(1.0, e.opacity + 0.1));
+
+                plot_svg_text(f, lx + 58.0, yy + 4.0,
+                    e.label.c_str(),
+                    opt.legend_font_size,
+                    "start",
+                    "#333333");
+            }
+        }
+    }
+
+    std::fprintf(f, "</svg>\n");
+    std::fclose(f);
+
+    return true;
 }

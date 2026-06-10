@@ -5,6 +5,10 @@
 #include <vector>
 #include <cassert>
 #include <algorithm>
+#include <cmath>
+#include <cstring>
+
+#include "SobolHardcodedTables.h"
 
 #define MAX_GF 16
 
@@ -15,17 +19,26 @@ extern char div_non_prime[MAX_GF + 1][MAX_GF][MAX_GF];
 extern char neg_non_prime[MAX_GF + 1][MAX_GF];
 extern char invGalois[MAX_GF + 1][MAX_GF];
 
-class OwenTreeND;
+struct OwenTreeND;
+struct DiscrepancyCurve;
+struct ReferenceCurveSpec;
+struct DiscrepancyPlotOptions;
 
-double generalized_l2_discrepancy(const double* points, int npts, int dim, int block_size = 64);
+double generalized_l2_discrepancy(const double* points, int npts, int dim, int block_size = 128);
 double star_discrepancy(const double* points, int npts, int dim);
 void print_point_range(const double* points, int npts, int dim);
-int t_factor_pointset(const double* points, int npts, int dim, int base, bool dbg = false);
+int t_value_pointset(const double* points, int npts, int dim, int base, bool dbg = false);
 
 OwenTreeND make_random_owen_tree_nd(int dim, int base, int depth, uint64_t seed = 0x123456789ABCDEF0ULL);
 void apply_owen_permutation_real(const double* points_in, double* points_out, int npts, int dim, int m,  const OwenTreeND& tree);
-inline uint64_t ipow_u64_checked(int base, int exp);
+extern uint64_t ipow_u64_checked(int base, int exp);
+bool plot_discrepancy_curves_svg(const std::vector<DiscrepancyCurve>& curves, const std::vector<ReferenceCurveSpec>& refs, const DiscrepancyPlotOptions& opt, const char* filename);
+void padd_least_significant_digits(double* pts, long long n_pts, int dim, int base, int m, long long seed);
 
+enum PlotYAxisScale {
+    PLOT_Y_LOG10,
+    PLOT_Y_LINEAR
+};
 
 template<int p, int r>
 struct GFCardinality {
@@ -1983,7 +1996,115 @@ void fill_sobol(MatrixView<F> out,
     }
 }
 
+inline std::uint64_t sobol_ipow_u64(std::uint64_t b, int e) {
+    std::uint64_t r = 1;
+    for (int i = 0; i < e; ++i) {
+        r *= b;
+    }
+    return r;
+}
 
+template<class F>
+void fill_identity_generator_matrix(MatrixView<F> out) {
+    typedef typename F::T T;
+
+    assert(out.m == out.n);
+
+    for (int i = 0; i < out.m; ++i) {
+        for (int j = 0; j < out.n; ++j) {
+            out[i * out.n + j] = (i == j) ? T{ 1 } : T{ 0 };
+        }
+    }
+}
+
+template<class F>
+void fill_sobol_initial_V_from_decoded_entry(
+    MatrixView<F> V,
+    const SobolDecodedEntry& entry
+) {
+    typedef typename F::T T;
+
+    const int s = entry.s;
+    const int base = entry.p;
+
+    assert(V.m == s);
+    assert(V.n == s);
+
+    for (int i = 0; i < s; ++i) {
+        for (int j = 0; j < s; ++j) {
+            V[i * V.n + j] = T{ 0 };
+        }
+    }
+
+    for (int col = 0; col < s; ++col) {
+        const std::uint64_t mval = entry.m[col];
+
+        for (int row = 0; row <= col; ++row) {
+            const int shift = col - row;
+            const std::uint64_t div = sobol_ipow_u64(std::uint64_t(base), shift);
+            const int digit = int((mval / div) % std::uint64_t(base));
+
+            V[row * V.n + col] = T{ digit };
+        }
+    }
+}
+
+template<class F>
+void fill_sobol_poly_from_decoded_entry(
+    MatrixView<F> poly,
+    const SobolDecodedEntry& entry
+) {
+    typedef typename F::T T;
+
+    const int s = entry.s;
+
+    assert(poly.m * poly.n >= s);
+
+    for (int k = 0; k < s; ++k) {
+        poly[k] = T{ int(entry.poly[k]) };
+    }
+}
+
+template<class F>
+void fill_sobol_from_predefined_entry(
+    MatrixView<F> out,
+    const SobolDecodedEntry& entry
+) {
+    assert(out.m == out.n);
+    assert(F::r == 1);
+    assert(F::p == entry.p);
+
+    const int s = entry.s;
+
+    if (s == 0) {
+        fill_identity_generator_matrix<F>(out);
+        return;
+    }
+
+    Matrix<F> V(s, s);
+    Matrix<F> poly(1, s);
+
+    fill_sobol_initial_V_from_decoded_entry<F>(V.view(), entry);
+    fill_sobol_poly_from_decoded_entry<F>(poly.view(), entry);
+
+    fill_sobol<F>(out, poly.view(), V.view());
+}
+
+
+
+template<class F>
+void fill_sobol_from_predefined_table(
+    MatrixView<F> out,
+    SobolPredefinedTable table,
+    int dim_number
+) {
+    const SobolDecodedEntry* entry =
+        sobol_find_predefined_entry(table, dim_number);
+
+    assert(entry != 0);
+
+    fill_sobol_from_predefined_entry<F>(out, *entry);
+}
 
 template<class F>
 struct SobolMatrix : public Matrix<F> {
@@ -1995,6 +2116,17 @@ struct SobolMatrix : public Matrix<F> {
         MatrixView<F> init)
         : Base(n, n) {
         fill_sobol<F>(this->view(), poly, init);
+    }
+
+    SobolMatrix(SobolPredefinedTable table,
+        int dim_number,
+        int matrix_size)
+        : Base(matrix_size, matrix_size) {
+        fill_sobol_from_predefined_table<F>(
+            this->view(),
+            table,
+            dim_number
+        );
     }
 
 };
@@ -2309,6 +2441,7 @@ extern inline void svg_text(FILE* f, double x, double y, const char* text, int f
 extern inline void svg_line(FILE* f, double x1, double y1, double x2, double y2, const char* stroke, double width = 1.0, const char* extra = "");
 extern inline void svg_circle(FILE* f, double cx, double cy, double r, const char* fill, const char* stroke = "#333333");
 extern inline long long integer_power_clamped(int base, int exponent);
+inline int integer_log_exact_u64(uint64_t n, int base);
 extern inline void format_integer_label(long long v, char* out, int out_size);
 
 template<class F>
@@ -2663,132 +2796,6 @@ inline double gl2_kernel_soa_dim(const double* Y,
 
 extern inline double sanitize_unit_coord(double x);
 
-template<int DIM>
-double generalized_l2_discrepancy_squared_exact_dim(
-    const double* points,
-    int npts,
-    int block_size = 64
-) {
-    assert(points != 0);
-    assert(npts > 0);
-    assert(DIM > 0);
-    assert(block_size > 0);
-
-    const double invN = 1.0 / double(npts);
-
-    // Store Y in structure-of-arrays layout:
-    // Y[d * npts + i] = 2 - points[i * DIM + d]
-    std::vector<double> Y(size_t(DIM) * size_t(npts));
-
-#pragma omp parallel for
-    for (int i = 0; i < npts; ++i) {
-        for (int d = 0; d < DIM; ++d) {
-            const double x = points[i * DIM + d];
-            Y[d * npts + i] = 2.0 - x;
-        }
-    }
-
-    // term0 = (4/3)^DIM
-    long double term0 = 1.0L;
-    for (int d = 0; d < DIM; ++d) {
-        term0 *= 4.0L / 3.0L;
-    }
-
-    // term1 = sum_i prod_d (3 - x_i,d^2) / 2
-    long double term1_sum = 0.0L;
-
-#pragma omp parallel for reduction(+:term1_sum)
-    for (int i = 0; i < npts; ++i) {
-        long double prod = 1.0L;
-
-        for (int d = 0; d < DIM; ++d) {
-            const double y = Y[d * npts + i];
-            const double x = 2.0 - y;
-            prod *= 0.5L * (3.0L - double(x) * double(x));
-        }
-
-        term1_sum += prod;
-    }
-
-    // Diagonal part of term2:
-    // sum_i prod_d (2 - x_i,d)
-    long double term2_diag = 0.0L;
-
-#pragma omp parallel for reduction(+:term2_diag)
-    for (int i = 0; i < npts; ++i) {
-        long double prod = 1.0L;
-
-        for (int d = 0; d < DIM; ++d) {
-            prod *= Y[d * npts + i];
-        }
-
-        term2_diag += prod;
-    }
-
-    // Upper triangular part of term2.
-    const int nb = (npts + block_size - 1) / block_size;
-
-    long double term2_upper = 0.0L;
-
-#pragma omp parallel for schedule(dynamic, 1) reduction(+:term2_upper)
-    for (int bi = 0; bi < nb; ++bi) {
-        const int i0 = bi * block_size;
-        const int i1 = std::min(i0 + block_size, npts);
-
-        long double local = 0.0L;
-
-        for (int bj = bi; bj < nb; ++bj) {
-            const int k0 = bj * block_size;
-            const int k1 = std::min(k0 + block_size, npts);
-
-            if (bi == bj) {
-                // Same block: only i < k.
-                for (int i = i0; i < i1; ++i) {
-                    for (int k = i + 1; k < i1; ++k) {
-                        local += gl2_kernel_soa_dim<DIM>(Y.data(), npts, i, k);
-                    }
-                }
-            }
-            else {
-                // Different blocks: all pairs are upper-triangular.
-                for (int i = i0; i < i1; ++i) {
-                    for (int k = k0; k < k1; ++k) {
-                        local += gl2_kernel_soa_dim<DIM>(Y.data(), npts, i, k);
-                    }
-                }
-            }
-        }
-
-        term2_upper += local;
-    }
-
-    const double term2_sum =
-        term2_diag + 2.0L * term2_upper;
-
-    const double d2 =
-        term0
-        - 2.0L * invN * term1_sum
-        + double(invN) * double(invN) * term2_sum;
-
-    return (d2 < 0.0 && d2 > -1e-12) ? 0.0 : d2;
-}
-
-
-
-template<int DIM>
-double generalized_l2_discrepancy_compile_time_dimension(const double* points,
-    int npts,
-    int block_size = 64) {
-    return std::sqrt(
-        generalized_l2_discrepancy_squared_exact_dim<DIM>(
-            points,
-            npts,
-            block_size
-        )
-    );
-}
-
-
 
 template<class Callback>
 bool enumerate_compositions_rec(int dim,
@@ -2892,7 +2899,133 @@ struct OwenTreeND {
 
 
 
+struct DiscrepancyCurve {
+    std::vector<long long> n_points;
+    std::vector<double> values;
 
+    std::string label;          // Optional individual label
+    std::string legend_group;   // Curves with the same non-empty group share one legend entry
+
+    std::string color;          // CSS color, empty = automatic
+    double stroke_width;        // <= 0 means use global default
+    double opacity;             // Line opacity
+    bool dashed;
+    std::string dash_array;     // Example: "7 5"
+
+    bool show_points;
+    double point_radius;
+    double point_opacity;
+
+    bool show_in_legend;
+
+    DiscrepancyCurve()
+        : stroke_width(-1.0),
+        opacity(0.9),
+        dashed(false),
+        dash_array("7 5"),
+        show_points(true),
+        point_radius(3.5),
+        point_opacity(0.95),
+        show_in_legend(true) {
+    }
+};
+
+struct ReferenceCurveSpec {
+    std::string label;          // Example: "IID ~ N^{-1/2}"
+    double exponent;            // y ~ N^{-exponent}
+    double scale;               // If <= 0, automatic normalization is used
+
+    std::string color;          // CSS color, empty = automatic
+    double stroke_width;        // <= 0 means use global default
+    double opacity;
+    bool dashed;
+    std::string dash_array;
+
+    bool show_in_legend;
+
+    ReferenceCurveSpec()
+        : exponent(0.5),
+        scale(-1.0),
+        stroke_width(-1.0),
+        opacity(0.9),
+        dashed(true),
+        dash_array("7 5"),
+        show_in_legend(true) {
+    }
+};
+
+struct DiscrepancyPlotOptions {
+    int width;
+    int height;
+
+    std::string title;
+    std::string x_label;
+    std::string y_label;
+
+    int base;                   // x-axis internally uses log_base(N)
+    double x_tick_octave_step;  // Example: 1.0 or 0.5
+    bool x_tick_label_as_counts;
+    bool x_tick_label_only_integer_octaves;
+
+    PlotYAxisScale y_scale;
+    int y_log10_tick_step;      // Used if y_scale == PLOT_Y_LOG10
+    double y_linear_tick_step;  // Used if y_scale == PLOT_Y_LINEAR
+
+    bool draw_grid;
+    bool draw_legend;
+
+    double default_curve_width;
+    double default_ref_width;
+
+    double left_margin;
+    double right_margin;
+    double top_margin;
+    double bottom_margin;
+
+    int title_font_size;
+    int axis_font_size;
+    int tick_font_size;
+    int legend_font_size;
+
+    std::vector<std::string> default_palette;
+
+    DiscrepancyPlotOptions()
+        : width(920),
+        height(580),
+        title("Discrepancy plot"),
+        x_label("Number of points N"),
+        y_label("Discrepancy"),
+        base(2),
+        x_tick_octave_step(1.0),
+        x_tick_label_as_counts(true),
+        x_tick_label_only_integer_octaves(true),
+        y_scale(PLOT_Y_LOG10),
+        y_log10_tick_step(1),
+        y_linear_tick_step(0.1),
+        draw_grid(true),
+        draw_legend(true),
+        default_curve_width(2.2),
+        default_ref_width(2.0),
+        left_margin(90.0),
+        right_margin(30.0),
+        top_margin(55.0),
+        bottom_margin(85.0),
+        title_font_size(18),
+        axis_font_size(14),
+        tick_font_size(12),
+        legend_font_size(12) {
+        default_palette.push_back("#4E79A7");
+        default_palette.push_back("#E15759");
+        default_palette.push_back("#59A14F");
+        default_palette.push_back("#F28E2B");
+        default_palette.push_back("#B07AA1");
+        default_palette.push_back("#76B7B2");
+        default_palette.push_back("#EDC948");
+        default_palette.push_back("#FF9DA7");
+        default_palette.push_back("#9C755F");
+        default_palette.push_back("#BAB0AC");
+    }
+};
 
 
 
