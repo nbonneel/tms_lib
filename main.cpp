@@ -257,7 +257,7 @@ void test_list_matrices() {
 
 void test_draw_points() {
 
-	typedef GF4 F;
+	typedef GF3 F;
 	typedef typename F::T T;
 
 	// theses Sobol' polynomials work nicely in GF3, but produce funny points in GF4
