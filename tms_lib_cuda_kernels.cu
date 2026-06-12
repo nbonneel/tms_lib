@@ -330,3 +330,271 @@ double generalized_l2_discrepancy_cuda_default(
         npts,
         dim));
 }
+
+
+
+
+
+#define CUDA_CHECK(call)                                                   \
+    do {                                                                   \
+        cudaError_t err__ = (call);                                        \
+        if (err__ != cudaSuccess) {                                        \
+            std::fprintf(stderr,                                           \
+                "CUDA error %s:%d: %s\n",                                  \
+                __FILE__, __LINE__, cudaGetErrorString(err__));            \
+            std::abort();                                                  \
+        }                                                                  \
+    } while (0)
+
+static inline double sanitize_unit_coord_host(double x) {
+    if (!std::isfinite(x)) return 0.0;
+    if (x < 0.0) return 0.0;
+    if (x >= 1.0) return std::nextafter(1.0, 0.0);
+    return x;
+}
+
+static unsigned long long checked_mul_u64(unsigned long long a,
+                                          unsigned long long b) {
+    if (a != 0 && b > ~0ULL / a) return ~0ULL;
+    return a * b;
+}
+
+static void build_candidate_coordinates_host(
+    const double* points,
+    int npts,
+    int dim,
+    int stride_dim,
+    std::vector<double>& coords_flat,
+    std::vector<int>& offsets,
+    std::vector<int>& sizes,
+    unsigned long long& n_candidates) {
+    if (stride_dim == 0) stride_dim = dim;
+
+    offsets.resize(dim + 1);
+    sizes.resize(dim);
+    coords_flat.clear();
+
+    n_candidates = 1ULL;
+
+    for (int d = 0; d < dim; ++d) {
+        std::vector<double> c;
+        c.reserve(size_t(npts) + 1);
+
+        for (int i = 0; i < npts; ++i) {
+            c.push_back(sanitize_unit_coord_host(points[size_t(i) * stride_dim + d]));
+        }
+        c.push_back(1.0);
+
+        std::sort(c.begin(), c.end());
+        c.erase(std::unique(c.begin(), c.end()), c.end());
+
+        offsets[d] = static_cast<int>(coords_flat.size());
+        sizes[d] = static_cast<int>(c.size());
+        coords_flat.insert(coords_flat.end(), c.begin(), c.end());
+
+        n_candidates = checked_mul_u64(n_candidates, static_cast<unsigned long long>(sizes[d]));
+    }
+
+    offsets[dim] = static_cast<int>(coords_flat.size());
+}
+
+int star_discrepancy_cuda_exhaustive_feasible(
+    const double* points,
+    int npts,
+    int dim,
+    int stride_dim,
+    unsigned long long max_candidate_boxes) {
+    if (!points || npts <= 0 || dim <= 0) return 0;
+    if (stride_dim == 0) stride_dim = dim;
+    if (stride_dim < dim) return 0;
+
+    std::vector<double> coords_flat;
+    std::vector<int> offsets;
+    std::vector<int> sizes;
+    unsigned long long n_candidates = 0;
+
+    build_candidate_coordinates_host(points, npts, dim, stride_dim,
+                                     coords_flat, offsets, sizes,
+                                     n_candidates);
+
+    return n_candidates <= max_candidate_boxes ? 1 : 0;
+}
+
+__device__ inline double atomicMaxDoubleCuda(double* address, double val) {
+    unsigned long long int* address_as_ull =
+        reinterpret_cast<unsigned long long int*>(address);
+    unsigned long long int old = *address_as_ull;
+    unsigned long long int assumed;
+
+    do {
+        assumed = old;
+        double old_val = __longlong_as_double(static_cast<long long>(assumed));
+        if (old_val >= val) break;
+        old = atomicCAS(address_as_ull,
+                        assumed,
+                        static_cast<unsigned long long int>(__double_as_longlong(val)));
+    } while (assumed != old);
+
+    return __longlong_as_double(static_cast<long long>(old));
+}
+
+__global__ void star_exhaustive_kernel(
+    const double* __restrict__ points,
+    const double* __restrict__ coords_flat,
+    const int* __restrict__ offsets,
+    const int* __restrict__ sizes,
+    int npts,
+    int dim,
+    int stride_dim,
+    unsigned long long n_candidates,
+    double invN,
+    double* best_out) {
+
+    unsigned long long tid =
+        static_cast<unsigned long long>(blockIdx.x) * blockDim.x + threadIdx.x;
+    unsigned long long step =
+        static_cast<unsigned long long>(gridDim.x) * blockDim.x;
+
+    // Supports runtime dimension. For each candidate rank, decode mixed radix.
+    for (unsigned long long rank = tid; rank < n_candidates; rank += step) {
+        unsigned long long r = rank;
+
+        // Small fixed upper bound for stack-local candidates. Increase if needed.
+        double u[64];
+        if (dim > 64) return;
+
+        double volume = 1.0;
+
+        for (int d = dim - 1; d >= 0; --d) {
+            int sd = sizes[d];
+            int idx = static_cast<int>(r % static_cast<unsigned long long>(sd));
+            r /= static_cast<unsigned long long>(sd);
+
+            double x = coords_flat[offsets[d] + idx];
+            u[d] = x;
+            volume *= x;
+        }
+
+        int count_less = 0;
+        int count_leq = 0;
+
+        for (int i = 0; i < npts; ++i) {
+            bool less = true;
+            bool leq = true;
+
+            for (int d = 0; d < dim; ++d) {
+                double p = points[static_cast<size_t>(i) * stride_dim + d];
+
+                // points were sanitized on the host for candidate generation,
+                // but the original input is used here. Apply equivalent clipping.
+                if (p < 0.0) p = 0.0;
+                if (p >= 1.0) p = nextafter(1.0, 0.0);
+
+                if (!(p < u[d])) less = false;
+                if (!(p <= u[d])) leq = false;
+
+                if (!less && !leq) break;
+            }
+
+            count_less += less ? 1 : 0;
+            count_leq += leq ? 1 : 0;
+        }
+
+        double dplus = static_cast<double>(count_leq) * invN - volume;
+        double dminus = volume - static_cast<double>(count_less) * invN;
+        double b = dplus > dminus ? dplus : dminus;
+
+        if (b > 0.0) {
+            atomicMaxDoubleCuda(best_out, b);
+        }
+    }
+}
+
+double star_discrepancy_exact_cuda_exhaustive(
+    const double* points,
+    int npts,
+    int dim,
+    int stride_dim,
+    unsigned long long max_candidate_boxes) {
+
+    assert(points != nullptr);
+    assert(npts > 0);
+    assert(dim > 0);
+    if (stride_dim == 0) stride_dim = dim;
+    assert(stride_dim >= dim);
+
+    std::vector<double> coords_flat;
+    std::vector<int> offsets;
+    std::vector<int> sizes;
+    unsigned long long n_candidates = 0;
+
+    build_candidate_coordinates_host(points, npts, dim, stride_dim,
+                                     coords_flat, offsets, sizes,
+                                     n_candidates);
+
+    if (n_candidates > max_candidate_boxes) {
+        std::fprintf(stderr,
+                     "star_discrepancy_exact_cuda_exhaustive: too many candidate boxes: %llu > %llu.\n"
+                     "Use the CPU branch-and-bound path for this case.\n",
+                     n_candidates, max_candidate_boxes);
+        return -1.0;
+    }
+
+    double* d_points = nullptr;
+    double* d_coords = nullptr;
+    int* d_offsets = nullptr;
+    int* d_sizes = nullptr;
+    double* d_best = nullptr;
+
+    const size_t points_bytes = size_t(npts) * size_t(stride_dim) * sizeof(double);
+    const size_t coords_bytes = coords_flat.size() * sizeof(double);
+    const size_t offsets_bytes = offsets.size() * sizeof(int);
+    const size_t sizes_bytes = sizes.size() * sizeof(int);
+
+    CUDA_CHECK(cudaMalloc(&d_points, points_bytes));
+    CUDA_CHECK(cudaMalloc(&d_coords, coords_bytes));
+    CUDA_CHECK(cudaMalloc(&d_offsets, offsets_bytes));
+    CUDA_CHECK(cudaMalloc(&d_sizes, sizes_bytes));
+    CUDA_CHECK(cudaMalloc(&d_best, sizeof(double)));
+
+    double zero = 0.0;
+    CUDA_CHECK(cudaMemcpy(d_points, points, points_bytes, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d_coords, coords_flat.data(), coords_bytes, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d_offsets, offsets.data(), offsets_bytes, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d_sizes, sizes.data(), sizes_bytes, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d_best, &zero, sizeof(double), cudaMemcpyHostToDevice));
+
+    int block = 128;
+    int grid = 0;
+    if (n_candidates < 65535ULL * block) {
+        grid = static_cast<int>((n_candidates + block - 1) / block);
+        if (grid < 1) grid = 1;
+    } else {
+        grid = 65535;
+    }
+
+    star_exhaustive_kernel<<<grid, block>>>(
+        d_points,
+        d_coords,
+        d_offsets,
+        d_sizes,
+        npts,
+        dim,
+        stride_dim,
+        n_candidates,
+        1.0 / static_cast<double>(npts),
+        d_best);
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
+
+    double best = 0.0;
+    CUDA_CHECK(cudaMemcpy(&best, d_best, sizeof(double), cudaMemcpyDeviceToHost));
+
+    CUDA_CHECK(cudaFree(d_points));
+    CUDA_CHECK(cudaFree(d_coords));
+    CUDA_CHECK(cudaFree(d_offsets));
+    CUDA_CHECK(cudaFree(d_sizes));
+    CUDA_CHECK(cudaFree(d_best));
+
+    return best;
+}

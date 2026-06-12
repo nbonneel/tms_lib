@@ -32,12 +32,21 @@ extern "C" {
 #endif
     double generalized_l2_discrepancy_squared_cuda(const double* h_points, int npts, int dim, int stride_dim = 0, int threads_per_block = 256, int i_chunk_size = 1024);
     double generalized_l2_discrepancy_cuda(const double* h_points, int npts, int dim, int stride_dim = 0, int threads_per_block = 256, int i_chunk_size = 1024);
+    int star_discrepancy_cuda_exhaustive_feasible(const double* points, int npts, int dim, int stride_dim, unsigned long long max_candidate_boxes);
+
+    // Exact exhaustive CUDA star discrepancy over the canonical candidate grid.
+    // points layout: points[point_id * stride_dim + dim_id]. If stride_dim == 0,
+    // stride_dim is interpreted as dim.
+    //
+    // WARNING: exponential in dim. Useful for dim=2/small dim validation, not for
+    // large 4D/N-D cases where the CPU branch-and-bound is the right algorithm.
+    double star_discrepancy_exact_cuda_exhaustive(const double* points, int npts, int dim, int stride_dim, unsigned long long max_candidate_boxes);
 #ifdef __cplusplus
 }
 #endif
 #endif
 
-double star_discrepancy(const double* points, int npts, int dim);
+double star_discrepancy(const double* points, int npts, int dim, bool gpu = true);
 void print_point_range(const double* points, int npts, int dim);
 int t_value_pointset(const double* points, int npts, int dim, int base, bool dbg = false);
 

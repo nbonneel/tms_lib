@@ -1364,7 +1364,32 @@ double star_discrepancy_2d_exact_sweep(const double* points,
 
 double star_discrepancy(const double* points,
     int npts,
-    int dim) {
+    int dim, bool gpu) {
+
+#ifdef TMS_USE_CUDA
+    const unsigned long long max_candidate_boxes = 20000000ULL;
+
+    if (dim <= 3 &&
+        star_discrepancy_cuda_exhaustive_feasible(
+            points,
+            npts,
+            dim,
+            dim,
+            max_candidate_boxes)) {
+        const double r =
+            star_discrepancy_exact_cuda_exhaustive(
+                points,
+                npts,
+                dim,
+                dim,
+                max_candidate_boxes);
+
+        if (r >= 0.0) {
+            return r;
+        }
+    }
+#endif
+
     if (dim == 2) {
         return star_discrepancy_2d_exact_sweep(points, npts);
     }

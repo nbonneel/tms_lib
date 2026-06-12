@@ -1,3 +1,5 @@
+#define TMS_USE_CUDA
+
 #include "tms_lib.h"
 #include <vector>
 #include <chrono>
@@ -288,7 +290,7 @@ void test_owen() {
 	typedef GF5 F;
 	typedef typename F::T T;
 
-	const int m = 7;
+	const int m = 8;
 	const int dim = 3;
 	const int base = std::pow((int)F::p, (int) F::r);
 	const int n_pts = std::pow(base, m);
@@ -321,10 +323,28 @@ void test_owen() {
 	std::cout << "t value according to matrix : " << t_matrix << std::endl;
 	std::cout << "t value according to point set : " << t_before << std::endl;
 	std::cout << "t value according to scrambled point set : " << t_after << std::endl;
-	double gl2disc_before = generalized_l2_discrepancy(&pts[0], n_pts, dim);
-	std::cout << "generalized l2 discrepancy before scrambling: " << gl2disc_before << std::endl;
+	auto time_point1 = std::chrono::high_resolution_clock::now();
+	double gl2disc_before = generalized_l2_discrepancy(&pts[0], n_pts, dim, 128, false);
+	auto time_point2 = std::chrono::high_resolution_clock::now();
+	double gl2disc_before_gpu = generalized_l2_discrepancy(&pts[0], n_pts, dim, 128, true);
+	auto time_point3 = std::chrono::high_resolution_clock::now();
+
+	
+	std::cout << "generalized l2 discrepancy before scrambling (CPU): " << gl2disc_before << ", time taken: "<<std::chrono::duration_cast<std::chrono::milliseconds>((time_point2 - time_point1)).count() << " ms"<< std::endl;
+	std::cout << "generalized l2 discrepancy before scrambling (GPU): " << gl2disc_before_gpu << ", time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>((time_point3 - time_point2)).count() << " ms" << std::endl;
+
 	double gl2disc_after = generalized_l2_discrepancy(&scrambled[0], n_pts, dim);
 	std::cout << "generalized l2 discrepancy after scrambling: " << gl2disc_after << std::endl;
+
+	auto time_point4 = std::chrono::high_resolution_clock::now();
+	double stardisc = star_discrepancy(&scrambled[0], std::min(n_pts,2500), dim, false);
+	auto time_point5 = std::chrono::high_resolution_clock::now();
+	std::cout << "star discrepancy in 3D ("<< std::min(n_pts, 2300)<<" points, CPU) : "<<stardisc << ", time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>((time_point5 - time_point4)).count() << " ms" << std::endl;
+
+	auto time_point6 = std::chrono::high_resolution_clock::now();
+	stardisc = star_discrepancy(&scrambled[0], std::min(n_pts, 2300), dim, true);
+	auto time_point7 = std::chrono::high_resolution_clock::now();
+	std::cout << "star discrepancy in 3D (" << std::min(n_pts, 2300) << " points, GPU) : " << stardisc << ", time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>((time_point7 - time_point6)).count() << " ms" << std::endl;
 
 }
 
@@ -368,8 +388,9 @@ void test_plot_discrepancy() {
 			apply_owen_permutation_real(&pts[0], &scrambled[0], n_pts, dim, std::ceil(m), tree);
 			padd_least_significant_digits(&scrambled[0], n_pts, dim, base, std::ceil(m), 123456+i*456);
 
-			double stardisc = star_discrepancy(&scrambled[0], n_pts, dim);
-			double gl2disc = generalized_l2_discrepancy(&scrambled[0], n_pts, dim);
+			// since we are computing discrepancies in parallel, let's do it on the CPU.
+			double stardisc = star_discrepancy(&scrambled[0], n_pts, dim, false);
+			double gl2disc = generalized_l2_discrepancy(&scrambled[0], n_pts, dim, 128, false);
 
 			avg_star_disc += stardisc;
 			avg_gl2_disc += gl2disc;
