@@ -263,23 +263,50 @@ void test_draw_points() {
 
 	typedef GF3 F;
 	typedef typename F::T T;
+	const int dim = 8;
 
-	// theses Sobol' polynomials work nicely in GF3, but produce funny points in GF4
-	Matrix<F> poly1(1, 3, { 1, 2, 0 });
-	Matrix<F> init1(3, 3, { 1, 1, 1, 0, 1, 1, 0, 0, 1 });
-	SobolMatrix<F> S1(10, poly1.view(), init1.view());
-
-	Matrix<F> poly2(1, 3, { 2, 2, 0 });
-	Matrix<F> init2(3, 3, { 1, 0, 1,  0, 1, 2, 0, 0, 1 });
-	SobolMatrix<F> S2(10, poly2.view(), init2.view());
-
-	std::vector<MatrixView<F> > m;
-	m.push_back(S1.view());
-	m.push_back(S2.view());
+	std::vector<SobolMatrix<F> > seq;
+	for (int i = 0; i < dim; i++) {
+		seq.push_back(SobolMatrix<F>(SOBOL_QUADQUAD_GF3, i, 12));
+	}
 	
-	draw_2D_points(S1.view(), S2.view(), std::pow(std::pow((int)F::p, (int)F::r), 7), "points.svg");
+	std::vector<MatrixView<F> > seq_view;
+	for (int i = 0; i < dim; i++) {
+		seq_view.push_back(seq[i].view());
+	}
 
-	S1.save_svg("matrix1.svg");
+	
+	// save two dimensions
+	draw_2D_points(seq_view[0], seq_view[1], std::pow(std::pow((int)F::p, (int)F::r), 7), "points.svg");
+
+	// save matrix
+	seq_view[1].save_svg("matrix1.svg");
+
+
+
+	// saves all projection pairs
+	// first the set of projections we would like to highlight and which colors
+	ProjectionHighlight highlights[] = {
+		ProjectionHighlight(0, 1, "#F28E2B", 2.4),
+
+		ProjectionHighlight(0, 2, "#2CA02C", 2.4),
+		ProjectionHighlight(1, 2, "#2CA02C", 2.4),
+
+		ProjectionHighlight(0, 3, "#2CA02C", 2.4),
+		ProjectionHighlight(1, 3, "#2CA02C", 2.4),
+		ProjectionHighlight(2, 3, "#2CA02C", 2.4),
+
+		ProjectionHighlight(4, 5, "#F28E2B", 2.4),
+
+		ProjectionHighlight(4, 6, "#2CA02C", 2.4),
+		ProjectionHighlight(5, 6, "#2CA02C", 2.4),
+
+		ProjectionHighlight(4, 7, "#2CA02C", 2.4),
+		ProjectionHighlight(5, 7, "#2CA02C", 2.4),
+		ProjectionHighlight(6, 7, "#2CA02C", 2.4)
+	};
+	std::vector<double> points = get_points(&seq_view[0], dim, std::pow(std::pow((int)F::p, (int)F::r), 5));
+	draw_2d_projections_svg(&points[0], dim, points.size()/dim, "projections.svg", highlights, 12);
 }
 
 

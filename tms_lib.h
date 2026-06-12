@@ -23,6 +23,7 @@ struct OwenTreeND;
 struct DiscrepancyCurve;
 struct ReferenceCurveSpec;
 struct DiscrepancyPlotOptions;
+struct ProjectionHighlight;
 
 double generalized_l2_discrepancy(const double* points, int npts, int dim, int block_size = 128, bool use_gpu = true);
 
@@ -55,6 +56,12 @@ void apply_owen_permutation_real(const double* points_in, double* points_out, in
 extern uint64_t ipow_u64_checked(int base, int exp);
 bool plot_discrepancy_curves_svg(const std::vector<DiscrepancyCurve>& curves, const std::vector<ReferenceCurveSpec>& refs, const DiscrepancyPlotOptions& opt, const char* filename);
 void padd_least_significant_digits(double* pts, long long n_pts, int dim, int base, int m, long long seed);
+
+
+bool draw_2d_projections_svg(double* points, int dim, long long n_points, const char* filename, const ProjectionHighlight* highlights = 0,
+    int n_highlights = 0, int cell_size = 90, int cell_inner_margin = 4, int outer_margin = 8, int label_band = 22,
+    double point_radius = 0.55, const char* point_color = "#111111", double point_opacity = 0.25, const char* default_border_color = "#A8B0FF",
+    double default_border_width = 1.2, int label_font_size = 11);
 
 enum PlotYAxisScale {
     PLOT_Y_LOG10,
@@ -2460,7 +2467,7 @@ extern inline const char* discrepancy_metric_name(DiscrepancyPlotMetric metric);
 extern inline double safe_log10(double x);
 extern inline void svg_text(FILE* f, double x, double y, const char* text, int font_size = 12, const char* anchor = "middle", const char* fill = "#333333");
 extern inline void svg_line(FILE* f, double x1, double y1, double x2, double y2, const char* stroke, double width = 1.0, const char* extra = "");
-extern inline void svg_circle(FILE* f, double cx, double cy, double r, const char* fill, const char* stroke = "#333333");
+extern inline void svg_circle(FILE* f, double cx, double cy, double r, const char* fill, const char* stroke = "#333333", double opacity = 1.0);
 extern inline long long integer_power_clamped(int base, int exponent);
 inline int integer_log_exact_u64(uint64_t n, int base);
 extern inline void format_integer_label(long long v, char* out, int out_size);
@@ -2918,7 +2925,19 @@ struct OwenTreeND {
     }
 };
 
+struct ProjectionHighlight {
+    int dim0;
+    int dim1;
+    const char* color;
+    double stroke_width;
 
+    ProjectionHighlight(int a = 0,
+        int b = 0,
+        const char* c = "#59A14F",
+        double w = 2.0)
+        : dim0(a), dim1(b), color(c), stroke_width(w) {
+    }
+};
 
 struct DiscrepancyCurve {
     std::vector<long long> n_points;

@@ -1493,11 +1493,11 @@ inline void svg_circle(FILE* f,
     double cy,
     double r,
     const char* fill,
-    const char* stroke) {
+    const char* stroke, double opacity) {
     std::fprintf(f,
         "<circle cx=\"%.3f\" cy=\"%.3f\" r=\"%.3f\" "
-        "fill=\"%s\" stroke=\"%s\" stroke-width=\"1\"/>\n",
-        cx, cy, r, fill, stroke);
+        "fill=\"%s\" stroke=\"%s\" stroke-width=\"1\" fill-opacity=\"%.3f\"/>\n",
+        cx, cy, r, fill, stroke, opacity);
 }
 
 
@@ -2670,5 +2670,150 @@ bool plot_discrepancy_curves_svg(
     std::fprintf(f, "</svg>\n");
     std::fclose(f);
 
+    return true;
+}
+
+
+inline const ProjectionHighlight* find_projection_highlight(
+    int d0,
+    int d1,
+    const ProjectionHighlight* highlights,
+    int n_highlights
+) {
+    for (int i = 0; i < n_highlights; ++i) {
+        const int a = highlights[i].dim0;
+        const int b = highlights[i].dim1;
+
+        if ((a == d0 && b == d1) || (a == d1 && b == d0)) {
+            return &highlights[i];
+        }
+    }
+    return 0;
+}
+
+inline void svg_begin(FILE* f, int width, int height) {
+    std::fprintf(f,
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" "
+        "version=\"1.1\" width=\"%d\" height=\"%d\" "
+        "viewBox=\"0 0 %d %d\">\n",
+        width, height, width, height);
+
+    std::fprintf(f,
+        "<rect x=\"0\" y=\"0\" width=\"%d\" height=\"%d\" fill=\"#ffffff\"/>\n",
+        width, height);
+}
+
+inline void svg_end(FILE* f) {
+    std::fprintf(f, "</svg>\n");
+}
+
+inline void svg_rect(FILE* f,
+    double x,
+    double y,
+    double w,
+    double h,
+    const char* fill,
+    const char* stroke,
+    double stroke_width) {
+    std::fprintf(f,
+        "<rect x=\"%.3f\" y=\"%.3f\" width=\"%.3f\" height=\"%.3f\" "
+        "fill=\"%s\" stroke=\"%s\" stroke-width=\"%.3f\"/>\n",
+        x, y, w, h, fill, stroke, stroke_width);
+}
+
+
+
+bool draw_2d_projections_svg(
+    double* points, int dim, long long n_points, const char* filename, const ProjectionHighlight* highlights,
+    int n_highlights, int cell_size, int cell_inner_margin, int outer_margin, int label_band, double point_radius,
+    const char* point_color, double point_opacity, const char* default_border_color, double default_border_width,
+    int label_font_size
+) {
+    assert(dim >= 2);
+    assert(filename != 0);
+
+    const int ncols = dim - 1;
+    const int nrows = dim - 1;
+
+    const int width = 2 * outer_margin + label_band + ncols * cell_size;
+    const int height = 2 * outer_margin + label_band + nrows * cell_size;
+
+    FILE* f = std::fopen(filename, "w");
+    if (!f) {
+        return false;
+    }
+
+    svg_begin(f, width, height);
+
+    for (int d = 0; d < dim - 1; ++d) {
+        char txt[32];
+        std::snprintf(txt, sizeof(txt), "%d", d);
+        svg_text(f,
+            outer_margin + label_band + d * cell_size + cell_size * 0.5,
+            height - outer_margin + 4.0,
+            txt,
+            label_font_size,
+            "middle",
+            "#444444");
+    }
+
+    for (int d = 1; d < dim; ++d) {
+        char txt[32];
+        std::snprintf(txt, sizeof(txt), "%d", d);
+        svg_text(f,
+            outer_margin + label_band - 6.0,
+            outer_margin + (d - 1) * cell_size + cell_size * 0.5 + 4.0,
+            txt,
+            label_font_size,
+            "end",
+            "#444444");
+    }
+
+    for (int d1 = 1; d1 < dim; ++d1) {
+        for (int d0 = 0; d0 < d1; ++d0) {
+
+            const double x0 = outer_margin + label_band + d0 * cell_size;
+            const double y0 = outer_margin + (d1 - 1) * cell_size;
+
+            const ProjectionHighlight* hl =
+                find_projection_highlight(d0, d1, highlights, n_highlights);
+
+            const char* border_color =
+                hl ? hl->color : default_border_color;
+
+            const double border_width =
+                hl ? hl->stroke_width : default_border_width;
+
+            svg_rect(f,
+                x0, y0,
+                (double)cell_size, (double)cell_size,
+                "#ffffff",
+                border_color,
+                border_width);
+
+            const double px0 = x0 + cell_inner_margin;
+            const double py0 = y0 + cell_inner_margin;
+            const double pw = cell_size - 2.0 * cell_inner_margin;
+            const double ph = cell_size - 2.0 * cell_inner_margin;
+
+            for (long long p = 0; p < n_points; ++p) {
+                double u = points[(size_t)p * (size_t)dim + (size_t)d0];
+                double v = points[(size_t)p * (size_t)dim + (size_t)d1];
+
+                if (u < 0.0) u = 0.0;
+                if (u > 1.0) u = 1.0;
+                if (v < 0.0) v = 0.0;
+                if (v > 1.0) v = 1.0;
+
+                const double cx = px0 + u * pw;
+                const double cy = py0 + (1.0 - v) * ph;
+
+                svg_circle(f, cx, cy, point_radius, point_color, point_color, point_opacity);
+            }
+        }
+    }
+
+    svg_end(f);
+    std::fclose(f);
     return true;
 }
