@@ -11,7 +11,9 @@ void test_arithmetic() {
 	T a{ 3 };
 	T b{ 2 };
 	T c{ 4 };
-	auto d = a * F::div(a, b) + c;
+	T d = a * F::div(a, b) + c;
+	std::cout << d << std::endl;
+	d = gf_reduce<F::p, F::r>(d);
 	std::cout << d << std::endl;
 }
 
