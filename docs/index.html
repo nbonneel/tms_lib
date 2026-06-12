@@ -4,126 +4,293 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>tms_lib — finite-field digital nets and Sobol sequences</title>
+<meta name="description" content="Documentation for tms_lib: finite-field digital nets, (t,m,s)-nets, Sobol matrices, discrepancy metrics and projection diagnostics.">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
 <style>
-:root{
-  --bg:#0b1020; --panel:#121a33; --panel2:#17213e; --ink:#f2f6ff; --muted:#aeb9d6;
-  --accent:#7dd3fc; --accent2:#a78bfa; --good:#86efac; --warn:#fde68a; --line:#2b375f;
-  --code:#07101f; --chip:#1d2a4a;
+:root {
+  --bg: #0b1020;
+  --panel: #121a31;
+  --panel2: #18233e;
+  --ink: #edf2ff;
+  --muted: #aeb8d7;
+  --line: rgba(255,255,255,.12);
+  --accent: #8bd3ff;
+  --accent2: #b7f397;
+  --warn: #ffd166;
+  --code: #0e1428;
+  --paper: #f7f9ff;
+  --paper-ink: #101525;
 }
-*{box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(180deg,#08101f 0,#0b1020 40%,#0c1328 100%);color:var(--ink);line-height:1.55}
-a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
-.wrapper{max-width:1180px;margin:0 auto;padding:0 24px}
-.hero{padding:56px 0 34px;border-bottom:1px solid var(--line);background:radial-gradient(circle at 20% 10%,rgba(125,211,252,.20),transparent 30%),radial-gradient(circle at 80% 0,rgba(167,139,250,.18),transparent 30%)}
-.kicker{display:inline-block;background:rgba(125,211,252,.12);border:1px solid rgba(125,211,252,.35);padding:5px 10px;border-radius:999px;color:#c8f2ff;font-weight:700;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
-h1{font-size:clamp(38px,7vw,72px);line-height:.95;margin:20px 0 14px;letter-spacing:-.05em}
-.subtitle{max-width:880px;color:var(--muted);font-size:20px}
-.hero-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:28px;align-items:center;margin-top:28px}
-.card{background:rgba(18,26,51,.82);border:1px solid var(--line);border-radius:22px;padding:22px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
-.hero .card img{width:100%;display:block;background:#fff;border-radius:14px;padding:12px}
-.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px}
-.quick a{display:block;padding:12px 14px;background:var(--chip);border:1px solid var(--line);border-radius:14px;color:var(--ink);font-weight:650}
-section{padding:42px 0;border-bottom:1px solid rgba(43,55,95,.55)}
-h2{font-size:34px;margin:0 0 10px;letter-spacing:-.03em}
-h3{font-size:23px;margin:26px 0 10px;letter-spacing:-.02em}
-h4{font-size:17px;margin:18px 0 8px;color:#dce8ff}
-p{color:#d6def4}
-.muted{color:var(--muted)}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
-.figure img{width:100%;display:block;background:#fff;border-radius:16px;padding:12px}
-.figure figcaption{font-size:14px;color:var(--muted);margin-top:10px}
-.code, pre{background:var(--code);border:1px solid #1d2d52;border-radius:14px;padding:14px 16px;color:#dbeafe;overflow:auto}
-code{font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace}
-pre{white-space:pre;font-size:13px}
-.api-list{display:grid;gap:18px;margin-top:22px}
-.api{background:linear-gradient(180deg,rgba(23,33,62,.94),rgba(18,26,51,.94));border:1px solid var(--line);border-radius:22px;padding:22px}
-.api-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:12px}
-.api-name{font-size:24px;font-weight:780;letter-spacing:-.02em}
-.badges{display:flex;gap:8px;flex-wrap:wrap}
-.badge{font-size:12px;border:1px solid #344575;background:#18244a;color:#cdd8ff;border-radius:999px;padding:4px 9px}
-.proto{background:#07101f;border:1px solid #24375e;border-radius:14px;margin:12px 0;padding:13px 15px;overflow:auto}
-.proto pre{background:transparent;border:0;margin:0;padding:0}
-.meta{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:14px}
-.meta div{background:rgba(7,16,31,.65);border:1px solid #24375e;border-radius:14px;padding:11px}
-.meta b{display:block;color:#fff;margin-bottom:5px;font-size:13px}
-.meta span{color:var(--muted);font-size:13px}
-.calls{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
-.calls code{background:#1d2a4a;border:1px solid #344575;border-radius:999px;padding:5px 9px;color:#dbeafe}
-.note{border-left:4px solid var(--accent);background:rgba(125,211,252,.08);padding:12px 14px;border-radius:12px;color:#dbeafe}
-.warn{border-left-color:var(--warn);background:rgba(253,230,138,.08)}
-.refs{display:grid;gap:14px}
-.ref{padding:16px 18px;background:var(--panel);border:1px solid var(--line);border-radius:16px}
-.ref b{display:block;color:#fff}
-.ref span{color:var(--muted)}
-details{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 18px}
-summary{cursor:pointer;font-weight:700}
-footer{padding:36px 0;color:var(--muted)}
-@media(max-width:900px){.hero-grid,.grid2,.grid3{grid-template-columns:1fr}.quick{grid-template-columns:1fr 1fr}.meta{grid-template-columns:1fr 1fr}}
-@media(max-width:580px){.quick{grid-template-columns:1fr}.meta{grid-template-columns:1fr}.wrapper{padding:0 16px}}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.55;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(70,150,255,.25), transparent 35%),
+    radial-gradient(circle at 85% 10%, rgba(100,255,210,.18), transparent 30%),
+    var(--bg);
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+pre {
+  border-radius: 14px;
+  overflow: auto;
+  background: var(--code) !important;
+  border: 1px solid var(--line);
+  margin: 1rem 0;
+}
+:not(pre) > code {
+  color: #d3e5ff;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 5px;
+  padding: .06em .3em;
+}
+.container { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
+.hero { padding: 72px 0 44px; }
+.hero-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 36px; align-items: center; }
+.kicker { color: var(--accent2); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: .82rem; }
+h1 { font-size: clamp(2.5rem, 6vw, 5rem); line-height: .95; margin: .2em 0; letter-spacing: -0.055em; }
+h2 { font-size: clamp(1.65rem, 3vw, 2.6rem); margin: 0 0 .45rem; letter-spacing: -0.035em; }
+h3 { font-size: 1.25rem; margin: 1.6rem 0 .35rem; }
+h4 { margin: 1.1rem 0 .25rem; font-size: 1.05rem; }
+.lead { color: var(--muted); font-size: 1.14rem; max-width: 68ch; }
+.badges { display:flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.badge {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: #d9e4ff;
+  background: rgba(255,255,255,.06);
+  font-size: .92rem;
+}
+.panel {
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.045));
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  overflow: hidden;
+}
+.panel.pad { padding: 24px; }
+.hero-figure { padding: 18px; }
+.hero-figure img { display:block; width:100%; background:#fff; border-radius: 16px; }
+.caption { color: var(--muted); font-size: .92rem; margin: .6rem 0 0; }
+nav {
+  position: sticky; top: 0; z-index: 10;
+  backdrop-filter: blur(14px);
+  background: rgba(11,16,32,.78);
+  border-bottom: 1px solid var(--line);
+}
+nav .container { display:flex; gap: 20px; align-items:center; justify-content:space-between; padding: 12px 0; }
+nav .links { display:flex; flex-wrap:wrap; gap: 10px 16px; font-size: .92rem; }
+.logo { font-weight: 800; letter-spacing: -.04em; }
+section { padding: 48px 0; }
+.grid { display:grid; gap: 20px; }
+.grid.two { grid-template-columns: repeat(2, minmax(0,1fr)); }
+.grid.three { grid-template-columns: repeat(3, minmax(0,1fr)); }
+.card {
+  background: rgba(255,255,255,.055);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 20px;
+}
+.card h3:first-child, .card h4:first-child { margin-top: 0; }
+.api {
+  background: rgba(255,255,255,.052);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 20px;
+  margin: 18px 0;
+}
+.api header {
+  display:flex;
+  gap:12px;
+  align-items:flex-start;
+  justify-content:space-between;
+  margin-bottom: .5rem;
+}
+.api .name { font-weight: 800; font-size: 1.1rem; color: #fff; }
+.tags { display:flex; flex-wrap: wrap; gap: 6px; }
+.tag {
+  font-size: .76rem;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(139,211,255,.13);
+  color: #cbefff;
+  border: 1px solid rgba(139,211,255,.22);
+}
+.dl {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 8px 18px;
+  margin: 1rem 0 0;
+}
+.dl div:nth-child(odd) { color: #dbe6ff; font-weight: 700; }
+.dl div:nth-child(even) { color: var(--muted); }
+.figure-grid {
+  display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 20px;
+}
+.figure {
+  background: #fff;
+  border-radius: 20px;
+  padding: 12px;
+}
+.figure img { width: 100%; display:block; border-radius: 12px; }
+.figure figcaption { color:#3a435c; font-size:.92rem; margin:.6rem .2rem 0; }
+.refs li { margin-bottom: .78rem; }
+.small { font-size:.94rem; color: var(--muted); }
+.callout {
+  border-left: 4px solid var(--accent2);
+  padding: 12px 16px;
+  background: rgba(183,243,151,.08);
+  border-radius: 12px;
+  color: #def9d3;
+}
+hr { border:0; border-top:1px solid var(--line); margin: 36px 0; }
+footer { padding: 40px 0 70px; color: var(--muted); border-top:1px solid var(--line); }
+@media (max-width: 900px) {
+  .hero-grid, .grid.two, .grid.three, .figure-grid { grid-template-columns: 1fr; }
+  .dl { grid-template-columns: 1fr; gap: 3px; }
+  nav { position: static; }
+}
 </style>
 </head>
 <body>
+<nav>
+  <div class="container">
+    <div class="logo">tms_lib</div>
+    <div class="links">
+      <a href="#install">Install</a>
+      <a href="#concepts">Concepts</a>
+      <a href="#examples">Examples</a>
+      <a href="#api">API</a>
+      <a href="#gpu">CUDA</a>
+      <a href="#references">References</a>
+    </div>
+  </div>
+</nav>
+
 <header class="hero">
-  <div class="wrapper">
-    <span class="kicker">tms_lib documentation</span>
-    <h1>Finite-field digital nets, Sobol matrices, and discrepancy tools.</h1>
-    <p class="subtitle">A compact C++ template library for building and testing <em>(t,m,s)</em> nets and Sobol-style digital sequences over arbitrary supported Galois fields GF(p<sup>r</sup>).</p>
-    <div class="hero-grid">
-      <div>
-        <div class="quick">
-          <a href="#quickstart">Quick start</a>
-          <a href="#api">API manual</a>
-          <a href="#examples">Figures</a>
-          <a href="#references">References</a>
-        </div>
-        <p class="muted">This page documents the current public API used by <code>main.cpp</code>. In particular, the optimized t-value routine is <code>t_values</code>; the older exhaustive routine is <code>t_values_naive</code> and is mainly useful for debugging.</p>
+  <div class="container hero-grid">
+    <div>
+      <div class="kicker">Finite-field digital nets</div>
+      <h1>tms_lib</h1>
+      <p class="lead">
+        A compact C++ library for constructing and testing digital <em>(t,m,s)</em>-nets and Sobol-type
+        sequences over arbitrary prime-power Galois fields <code>GF(p^r)</code>. It provides finite-field
+        arithmetic, matrix generators, Sobol tables, <em>t</em>-value computation, discrepancy metrics,
+        Owen scrambling, and SVG diagnostics.
+      </p>
+      <div class="badges">
+        <span class="badge">C++14</span>
+        <span class="badge">GF(p<sup>r</sup>)</span>
+        <span class="badge">Sobol / OneTwo / QuadQuad</span>
+        <span class="badge">CPU + optional CUDA</span>
+        <span class="badge">SVG plots</span>
       </div>
-      <div class="card figure"><img src="points.svg" alt="2D digital point set"><figcaption>Example 2D point set generated from Sobol matrices over a finite field.</figcaption></div>
+    </div>
+    <div class="panel hero-figure">
+      <img src="projections.svg" alt="2D projections of a QuadQuad sequence">
+      <p class="caption">2D projection grid generated by the demo program, here illustrating the QuadQuad construction in base 3.</p>
     </div>
   </div>
 </header>
 
 <main>
-<section id="quickstart">
-  <div class="wrapper">
-    <h2>Quick start</h2>
-    <p>Include <code>tms_lib.h</code>, choose a field through <code>Field&lt;p,r&gt;</code> or a provided alias such as <code>GF2</code>/<code>GF3</code>, build generator matrices, then ask the library for t-values, points, discrepancy, or SVG diagnostics.</p>
-    <div class="code"><pre><code>#include "tms_lib.h"
+<section id="install">
+  <div class="container">
+    <h2>Install and build</h2>
+    <p>
+      The repository contains a CMake project that builds a static library <code>tms_lib</code> and the demo executable
+      <code>tms_demo</code>. The CMake file requires CMake 3.18, uses C++14, enables OpenMP by default when available,
+      and can optionally compile CUDA kernels through <code>TMS_USE_CUDA</code>.
+    </p>
+    <div class="grid two">
+      <div class="card">
+        <h3>CPU build</h3>
+<pre><code class="language-bash">git clone https://github.com/nbonneel/tms_lib.git
+cd tms_lib
 
-typedef GF2 F;
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
 
-const int dim = 5;
-const int matrix_size = 25;
-std::vector&lt;Matrix&lt;F&gt;&gt; matrices(dim);
-std::vector&lt;MatrixView&lt;F&gt;&gt; views(dim);
+# executable:
+./build/tms_demo</code></pre>
+      </div>
+      <div class="card">
+        <h3>CUDA build</h3>
+<pre><code class="language-bash">cmake -S . -B build-cuda \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DTMS_USE_CUDA=ON \
+  -DTMS_CUDA_ARCHITECTURES=75
 
-for (int d = 0; d &lt; dim; ++d) {
-    SobolMatrix&lt;F&gt; sobol(SOBOL_JOE_KUO_GF2, d, matrix_size);
-    matrices[d] = sobol.view();      // explicit deep copy from the view
-    views[d] = matrices[d].view();
-}
+cmake --build build-cuda --config Release</code></pre>
+        <p class="small">
+          The default CUDA architecture is set to <code>75</code>, which matches an RTX 2080. Override it with
+          <code>-DTMS_CUDA_ARCHITECTURES="75;86;89"</code> or another CMake CUDA architecture list.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
 
-std::vector&lt;int&gt; t = t_values(&views[0], dim);
-std::vector&lt;double&gt; pts = get_points&lt;F&gt;(&views[0], dim, 512);
-
-double star = star_discrepancy(&pts[0], 512, dim);
-double gl2  = generalized_l2_discrepancy(&pts[0], 512, dim);</code></pre></div>
-    <p class="note">Most algorithms are template-based and operate directly in the field <code>F</code>. For extension fields, arithmetic is performed through precomputed tables; for prime fields, the scalar type is plain <code>int</code>.</p>
+<section id="concepts">
+  <div class="container">
+    <h2>Core model</h2>
+    <div class="grid three">
+      <div class="card">
+        <h3>Fields</h3>
+        <p>
+          A field is represented by <code>Field&lt;p,r&gt;</code>. Prime fields <code>GF(p)</code> use plain
+          <code>int</code>; extension fields <code>GF(p^r)</code> use <code>GF_ext&lt;p,r&gt;</code>, whose
+          integer label indexes precomputed arithmetic tables.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Matrices</h3>
+        <p>
+          <code>Matrix&lt;F&gt;</code> owns row-major data. <code>MatrixView&lt;F&gt;</code> is a non-owning
+          view used to pass workspaces and avoid allocations inside hot routines.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Digital sequences</h3>
+        <p>
+          A coordinate generator matrix maps the base-<code>q</code> digit vector of an integer index to
+          the base-<code>q</code> digits of one coordinate. Multi-dimensional sequences are arrays of such matrices.
+        </p>
+      </div>
+    </div>
   </div>
 </section>
 
 <section id="examples">
-  <div class="wrapper">
-    <h2>Example outputs from <code>main.cpp</code></h2>
-    <div class="grid3">
-      <figure class="figure card"><img src="points.svg" alt="Points"><figcaption><b>points.svg</b> — first points of a two-dimensional digital sequence.</figcaption></figure>
-      <figure class="figure card"><img src="matrix1.svg" alt="Matrix"><figcaption><b>matrix1.svg</b> — finite-field generator matrix rendered directly as an SVG grid.</figcaption></figure>
-      <figure class="figure card"><img src="star_vs_l2_discrepancy.svg" alt="Discrepancy chart"><figcaption><b>star_vs_l2_discrepancy.svg</b> — star discrepancy vs. generalized L2 discrepancy under Owen scrambling.</figcaption></figure>
+  <div class="container">
+    <h2>Examples and diagnostics</h2>
+    <div class="figure-grid">
+      <figure class="figure">
+        <img src="points.svg" alt="2D points">
+        <figcaption>2D points generated from two generator matrices.</figcaption>
+      </figure>
+      <figure class="figure">
+        <img src="matrix1.svg" alt="Generator matrix SVG">
+        <figcaption>Color-coded generator matrix saved with <code>MatrixBase::save_svg</code>.</figcaption>
+      </figure>
+      <figure class="figure">
+        <img src="star_vs_l2_discrepancy.svg" alt="Star discrepancy and L2 discrepancy plot">
+        <figcaption>Star discrepancy and generalized L2 discrepancy curves.</figcaption>
+      </figure>
+      <figure class="figure">
+        <img src="projections.svg" alt="Projection grid">
+        <figcaption>All 2D projections of a higher-dimensional point set, with optional highlighted projections.</figcaption>
+      </figure>
     </div>
     <details style="margin-top:18px"><summary>Console output (order of matrices generated in parallel may vary)</summary><pre>
-	<code data-trim id="awesomecpp">
+	<code data-trim id="awesomecpp">	
 16
 1
 P =
@@ -171,108 +338,108 @@ P^3 =
 {0,     0,      0,      0,      0,      0,      0,      0,      1}
 }
 S1 :
-{{1,    1,      0,      0,      1,      1,      1,      0,      0,      1,      1,      1,      0,      0,      1,     1,       1,      0,      0,      1},
-{0,     1,      1,      1,      0,      0,      1,      1,      1,      0,      0,      1,      1,      1,      0,     0,       1,      1,      1,      0},
-{0,     0,      1,      1,      1,      0,      0,      1,      1,      1,      0,      0,      1,      1,      1,     0,       0,      1,      1,      1},
-{0,     0,      0,      1,      0,      0,      0,      0,      1,      0,      0,      0,      0,      1,      0,     0,       0,      0,      1,      0},
-{0,     0,      0,      0,      1,      0,      0,      0,      0,      1,      0,      0,      0,      0,      1,     0,       0,      0,      0,      1},
-{0,     0,      0,      0,      0,      1,      1,      0,      0,      1,      0,      0,      0,      0,      0,     1,       1,      0,      0,      1},
-{0,     0,      0,      0,      0,      0,      1,      1,      1,      0,      0,      0,      0,      0,      0,     0,       1,      1,      1,      0},
-{0,     0,      0,      0,      0,      0,      0,      1,      1,      1,      0,      0,      0,      0,      0,     0,       0,      1,      1,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      1,      0,      0,      0,      0,      0,      0,     0,       0,      0,      1,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      0,      0,      0,      0,     0,       0,      0,      0,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      0,      0,      1,     1,       1,      0,      0,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      1,      0,     0,       1,      1,      1,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      1,     0,       0,      1,      1,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      0,     0,       0,      0,      1,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,     0,       0,      0,      0,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     1,       1,      0,      0,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       1,      1,      1,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      1,      1,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      1,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      1}
+{{1,    1,      0,      0,      1,      1,      1,      0,      0,      1,      1,      1,      0,      0,      1,      1,      1,      0,      0,      1},
+{0,     1,      1,      1,      0,      0,      1,      1,      1,      0,      0,      1,      1,      1,      0,      0,      1,      1,      1,      0},
+{0,     0,      1,      1,      1,      0,      0,      1,      1,      1,      0,      0,      1,      1,      1,      0,      0,      1,      1,      1},
+{0,     0,      0,      1,      0,      0,      0,      0,      1,      0,      0,      0,      0,      1,      0,      0,      0,      0,      1,      0},
+{0,     0,      0,      0,      1,      0,      0,      0,      0,      1,      0,      0,      0,      0,      1,      0,      0,      0,      0,      1},
+{0,     0,      0,      0,      0,      1,      1,      0,      0,      1,      0,      0,      0,      0,      0,      1,      1,      0,      0,      1},
+{0,     0,      0,      0,      0,      0,      1,      1,      1,      0,      0,      0,      0,      0,      0,      0,      1,      1,      1,      0},
+{0,     0,      0,      0,      0,      0,      0,      1,      1,      1,      0,      0,      0,      0,      0,      0,      0,      1,      1,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      0,      0,      1,      1,      1,      0,      0,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      1,      0,      0,      1,      1,      1,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      1,      0,      0,      1,      1,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      0,      0,      0,      1,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      0,      0,      0,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      0,      0,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      1,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1}
 }
 S2 :
-{{1,    1,      0,      1,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0},
-{0,     1,      0,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0},
-{0,     0,      1,      0,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0},
-{0,     0,      0,      1,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0},
-{0,     0,      0,      0,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0},
-{0,     0,      0,      0,      0,      1,      1,      0,      1,      1,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      1,      0,      1,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      1,      0,      1,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      1,      1,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      0,      1,      1,     0,       0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      1,      0,     0,       0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      1,     0,       0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,     0,       0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,     0,       0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     1,       1,      0,      1,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       1,      0,      1,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      1,      0,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      1,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      1}
+{{1,    1,      0,      1,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     1,      0,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      1,      0,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      1,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      1,      1,      0,      1,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      1,      0,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      1,      0,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      1,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      0,      1,      1,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      1,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      1,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      0,      1,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      1,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1}
 }
 characteristic :
-{{1,    0,      0,      1,      0,      1,      0,      0,      1,      0,      1,      0,      0,      1,      0,     1,       0,      0,      1,      0},
-{0,     1,      1,      1,      1,      0,      1,      1,      1,      1,      0,      1,      1,      1,      1,     0,       1,      1,      1,      1},
-{0,     0,      1,      1,      0,      0,      0,      1,      1,      0,      0,      0,      1,      1,      0,     0,       0,      1,      1,      0},
-{0,     0,      0,      1,      1,      0,      0,      0,      1,      1,      0,      0,      0,      1,      1,     0,       0,      0,      1,      1},
-{0,     0,      0,      0,      1,      0,      0,      0,      0,      1,      0,      0,      0,      0,      1,     0,       0,      0,      0,      1},
-{0,     0,      0,      0,      0,      1,      0,      0,      1,      0,      0,      0,      0,      0,      0,     1,       0,      0,      1,      0},
-{0,     0,      0,      0,      0,      0,      1,      1,      1,      1,      0,      0,      0,      0,      0,     0,       1,      1,      1,      1},
-{0,     0,      0,      0,      0,      0,      0,      1,      1,      0,      0,      0,      0,      0,      0,     0,       0,      1,      1,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      1,      1,      0,      0,      0,      0,      0,     0,       0,      0,      1,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      0,      0,      0,      0,     0,       0,      0,      0,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      0,      1,      0,     1,       0,      0,      1,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      1,      1,     0,       1,      1,      1,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      0,     0,       0,      1,      1,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,     0,       0,      0,      1,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,     0,       0,      0,      0,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     1,       0,      0,      1,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       1,      1,      1,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      1,      1,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      1,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      1}
+{{1,    0,      0,      1,      0,      1,      0,      0,      1,      0,      1,      0,      0,      1,      0,      1,      0,      0,      1,      0},
+{0,     1,      1,      1,      1,      0,      1,      1,      1,      1,      0,      1,      1,      1,      1,      0,      1,      1,      1,      1},
+{0,     0,      1,      1,      0,      0,      0,      1,      1,      0,      0,      0,      1,      1,      0,      0,      0,      1,      1,      0},
+{0,     0,      0,      1,      1,      0,      0,      0,      1,      1,      0,      0,      0,      1,      1,      0,      0,      0,      1,      1},
+{0,     0,      0,      0,      1,      0,      0,      0,      0,      1,      0,      0,      0,      0,      1,      0,      0,      0,      0,      1},
+{0,     0,      0,      0,      0,      1,      0,      0,      1,      0,      0,      0,      0,      0,      0,      1,      0,      0,      1,      0},
+{0,     0,      0,      0,      0,      0,      1,      1,      1,      1,      0,      0,      0,      0,      0,      0,      1,      1,      1,      1},
+{0,     0,      0,      0,      0,      0,      0,      1,      1,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      1,      1,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      0,      1,      0,      1,      0,      0,      1,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      1,      1,      0,      1,      1,      1,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      0,      0,      0,      1,      1,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      0,      0,      0,      1,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      0,      0,      0,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      0,      0,      1,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      1,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1}
 }
 full_product =
-{{1,    1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,     1,       1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,     1,       1,      1,      1,      1,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      1,      1,      1,      1,      2,      2,      2,      2,      3,      3,      3,     3,       4,      4,      4,      4,      0,      0,      0,      0,      1,      1,      1,      1,      2,      2,     2,       2,      3,      3,      3,      3},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      1,      1,      1,      1,      3,      3,      3,     3,       1,      1,      1,      1,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,     1,       1,      3,      3,      3,      3},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      1,     1,       4,      4,      4,      4,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      1,      1,      1,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       1,      1,      1,      1,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,     1,       1,      1,      1,      1,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      1,      1,      2,      2,     2,       2,      3,      3,      3,      3},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,     1,       1,      3,      3,      3,      3},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      1,      1,      1,      1},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0},
-{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,     0,       0,      0,      0,      0,      0}
+{{1,    1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,       1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      1,      1,      1,      1,      2,      2,      2,      2,      3,      3,      3,      3,      4,      4,      4,      4,      0,      0,      0,      0,      1,       1,      1,      1,      2,      2,      2,      2,      3,      3,      3,      3},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      1,      1,      1,      1,      3,      3,      3,      3,      1,      1,      1,      1,      0,      0,      0,      0,      0,       0,      0,      0,      1,      1,      1,      1,      3,      3,      3,      3},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      1,      1,      4,      4,      4,      4,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      1,      1,      1,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      1,      1,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,      1,      1,      1,      1,       1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      1,       1,      1,      1,      2,      2,      2,      2,      3,      3,      3,      3},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      1,      1,      1,      1,      3,      3,      3,      3},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      1,      1,      1,      1},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0},
+{0,     0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0,       0,      0,      0,      0,      0,      0,      0,      0,      0,      0,      0}
 }
 truncated_product =
 {{1,    1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1},
@@ -305,9 +472,9 @@ combination =
 }
 combination rank = 9
 combination_lr rank = 7
-1252 ms, t (naive) :
+1528 ms, t (naive) :
 0 1 2 1 2 2 2 3 3 3 3 2 3 4 3 3 3 3 3 4 4 4 4 4 5 3 4 5 4 4 4 4 5 6 5 5 5 5 6 5
-917 ms, t ([Marion et al. 2020]):
+1081 ms, t ([Marion et al. 2020]):
 0 1 2 1 2 2 2 3 3 3 3 2 3 4 3 3 3 3 3 4 4 4 4 4 5 3 4 5 4 4 4 4 5 6 5 5 5 5 6 5
 Matrix 0
 {{1,    1,      2},
@@ -371,55 +538,55 @@ Matrix 11
 }
 Matrix 0
 {{1,    2,      1},
-{0,     1,      1},
-{0,     0,      1}
-}
-rank = 3
-Matrix 1
-{{1,    2,      1},
 {0,     1,      2},
 {0,     0,      1}
 }
 rank = 3
-Matrix 2
+Matrix 1
 {{1,    2,      2},
+{0,     1,      0},
+{0,     0,      1}
+}
+rank = 3
+Matrix 2
+{{1,    2,      1},
 {0,     1,      1},
 {0,     0,      1}
 }
 rank = 3
 Matrix 3
-{{1,    2,      2},
-{0,     1,      2},
+{{1,    1,      1},
+{0,     1,      1},
 {0,     0,      1}
 }
 rank = 3
 Matrix 4
-{{1,    2,      2},
+{{1,    1,      1},
 {0,     1,      0},
 {0,     0,      1}
 }
 rank = 3
 Matrix 5
 {{1,    1,      1},
-{0,     1,      1},
+{0,     1,      2},
 {0,     0,      1}
 }
 rank = 3
 Matrix 6
-{{1,    1,      1},
+{{1,    2,      2},
 {0,     1,      2},
 {0,     0,      1}
 }
 rank = 3
 Matrix 7
-{{1,    1,      2},
+{{1,    2,      2},
 {0,     1,      1},
 {0,     0,      1}
 }
 rank = 3
 Matrix 8
-{{1,    1,      1},
-{0,     1,      0},
+{{1,    1,      2},
+{0,     1,      1},
 {0,     0,      1}
 }
 rank = 3
@@ -430,241 +597,172 @@ Matrix 9
 }
 rank = 3
 Matrix 10
-{{1,    1,      2},
-{0,     1,      0},
-{0,     0,      1}
-}
-rank = 3
-Matrix 11
 {{1,    2,      1},
 {0,     1,      0},
 {0,     0,      1}
 }
 rank = 3
-t value according to matrix : 3
-t value according to point set : 3
-t value according to scrambled point set : 3
-generalized l2 discrepancy before scrambling: 0.000704709
-generalized l2 discrepancy after scrambling: 0.000607458	
-	</code></pre></details>
+Matrix 11
+{{1,    1,      2},
+{0,     1,      0},
+{0,     0,      1}
+}
+rank = 3
+t value according to matrix : 2
+t value according to point set : 2
+t value according to scrambled point set : 2
+generalized l2 discrepancy before scrambling (CPU): 1.96662e-05, time taken: 9444 ms
+generalized l2 discrepancy before scrambling (GPU): 1.96884e-05, time taken: 4132 ms
+generalized l2 discrepancy after scrambling: 1.94257e-05
+star discrepancy in 3D (2300 points, CPU) : 0.00895658, time taken: 9577 ms
+star discrepancy in 3D (2300 points, GPU) : 0.0111261, time taken: 5966 ms
+
+</code></pre></details>
+
+    <h3>Minimal construction</h3>
+<pre><code class="language-cpp">typedef Field&lt;2,1&gt; F2;
+typedef Field&lt;3,1&gt; F3;
+
+const int m = 20;
+
+// Joe--Kuo / UNSW Sobol direction numbers in base 2.
+SobolMatrix&lt;F2&gt; s0(SOBOL_JOE_KUO_GF2, 0, m);
+SobolMatrix&lt;F2&gt; s1(SOBOL_JOE_KUO_GF2, 1, m);
+
+// OneTwo and QuadQuad tables.
+SobolMatrix&lt;F2&gt; one_two(SOBOL_ONETWO_SEQ_GF2, 8, m);
+SobolMatrix&lt;F3&gt; quadquad(SOBOL_QUADQUAD_GF3, 4, m);
+
+// Coordinates.
+std::vector&lt;double&gt; x = s0.get_point_coordinates(1 &lt;&lt; 10);
+std::vector&lt;double&gt; y = s1.get_point_coordinates(1 &lt;&lt; 10);
+
+draw_2D_points&lt;F2&gt;(s0.view(), s1.view(), 1024, "points.svg");</code></pre>
   </div>
 </section>
 
 <section id="api">
-  <div class="wrapper">
-    <h2>API manual</h2>
-    <p>The entries below document the classes and routines exercised by <code>main.cpp</code>. The emphasis is on finite-field assumptions, computational cost, memory behavior, and safe usage in parallel code.</p>
-    <div class="api-list">
-      
-    <article class="api" id="finite-field-layer">
-      <div class="api-head"><div class="api-name">Finite field layer</div><div class="badges"><span class="badge">GF(p^r)</span><span class="badge">header-only templates</span></div></div>
-      <div class="proto"><pre><code>template&lt;int p, int r&gt; struct GF_ext { int v; };
+  <div class="container">
+    <h2>API reference</h2>
+
+    <div class="api">
+      <header><div class="name">Finite-field types</div><div class="tags"><span class="tag">GF(p^r)</span><span class="tag">header-only templates</span></div></header>
+<pre><code class="language-cpp">template&lt;int p, int r&gt; struct Field;
+template&lt;int p, int r&gt; struct GF_ext;
+template&lt;int p, int r&gt; using GF = std::conditional_t&lt;r == 1, int, GF_ext&lt;p,r&gt;&gt;;
+
+template&lt;int p, int r, typename T&gt; auto gf_reduce(T x);
+template&lt;int p, int r&gt; auto gf_from_int(int x);
+template&lt;class F&gt; int gf_to_raw_index(typename F::T x);
+template&lt;class F&gt; void decompose_integer_into_base(long long val,
+                                                   typename F::T* digits,
+                                                   int max_digits);</code></pre>
+      <div class="dl">
+        <div>Purpose</div><div>Provide arithmetic over <code>GF(p)</code> and small extension fields <code>GF(p^r)</code> through precomputed add/sub/mul/div/inverse tables.</div>
+        <div>Assumptions</div><div><code>p^r ≤ MAX_GF</code> for table-backed extension fields. <code>gf_from_int</code> injects integers into the prime subfield, whereas raw labels such as base-<code>q</code> digits are usually assigned with <code>T{digit}</code>.</div>
+        <div>Complexity</div><div>All elementary field operations are <code>O(1)</code>. Digit decomposition is <code>O(max_digits)</code>.</div>
+        <div>Thread safety</div><div>Read-only use of the global arithmetic tables is thread-safe after initialization. No routine in this group mutates shared state.</div>
+      </div>
+    </div>
+
+    <div class="api">
+      <header><div class="name">Matrix storage and views</div><div class="tags"><span class="tag">row-major</span><span class="tag">zero-copy views</span></div></header>
+<pre><code class="language-cpp">template&lt;class F&gt; struct MatrixView;
+template&lt;class F&gt; struct Matrix;
+template&lt;class Derived, class F&gt; struct MatrixBase;
+
+Matrix&lt;F&gt;::Matrix(int rows, int cols);
+Matrix&lt;F&gt;::Matrix(const MatrixView&lt;F&gt;&amp; view);
+MatrixView&lt;F&gt; Matrix&lt;F&gt;::view();
+
+int MatrixBase&lt;Derived,F&gt;::rank(MatrixView&lt;F&gt; tmpPivoted) const;
+int MatrixBase&lt;Derived,F&gt;::rank() const;
+
+int MatrixBase&lt;Derived,F&gt;::checkDet(MatrixView&lt;F&gt; tmpMatT,
+                                     MatrixView&lt;F&gt; tmpInv,
+                                     MatrixView&lt;F&gt; tmpiAc,
+                                     MatrixView&lt;F&gt; tmpriA) const;
+int MatrixBase&lt;Derived,F&gt;::checkDet() const;
+
+Matrix&lt;F&gt; MatrixBase&lt;Derived,F&gt;::get_inverse(MatrixView&lt;F&gt; tmpMatT,
+                                               MatrixView&lt;F&gt; tmpiAc,
+                                               MatrixView&lt;F&gt; tmpriA) const;
+
+bool MatrixBase&lt;Derived,F&gt;::save_svg(const char* filename,
+                                      int cell_size = 24,
+                                      int margin = 6,
+                                      bool draw_grid = true) const;</code></pre>
+      <div class="dl">
+        <div>Purpose</div><div>Generic finite-field matrix algebra, visualization, and determinant/rank tests used by the digital-net routines.</div>
+        <div>Rank</div><div><code>rank</code> copies into the supplied workspace and performs Gaussian elimination with row/column pivoting. Time <code>O(m n min(m,n))</code>; memory <code>O(mn)</code> for the workspace.</div>
+        <div><code>checkDet</code></div><div>Tests leading anchored square minors. It has hand-written tests up to small sizes and then uses incremental inverse / determinant-lemma updates. It assumes that no pivoting is needed; this is appropriate for the Sobol-matrix checks for which it was written, not for arbitrary matrices such as anti-diagonal matrices.</div>
+        <div>Thread safety</div><div>Preallocated-workspace overloads are thread-safe when each thread owns distinct workspaces. <code>save_svg</code> writes to a file and is only thread-safe for different filenames.</div>
+      </div>
+    </div>
+
+    <div class="api">
+      <header><div class="name">Pascal and tensor-product matrices</div><div class="tags"><span class="tag">digital shifts</span><span class="tag">Kronecker products</span></div></header>
+<pre><code class="language-cpp">template&lt;int p, int r&gt;
+void pascal_pow_int(GF&lt;p,r&gt;* mat, int n, int power);
 
 template&lt;int p, int r&gt;
-using GF = typename std::conditional&lt;r == 1, int, GF_ext&lt;p,r&gt;&gt;::type;
+void pascal_pow_field(GF&lt;p,r&gt;* mat, int n, GF&lt;p,r&gt; power);
 
-template&lt;int p_, int r_&gt;
-struct Field {
-    enum { p = p_, r = r_ };
-    typedef GF&lt;p,r&gt; T;
-    static inline T zero();
-    static inline T one();
-    static inline T div(T a, T b);
-    static inline T inv(T a);
-};
-
-template&lt;int p,int r,typename T&gt; gf_reduce(T x);
-template&lt;int p,int r&gt; GF&lt;p,r&gt; gf_from_int(int x);
-template&lt;int p,int r&gt; int gf_to_raw_index(GF&lt;p,r&gt; x);</code></pre></div>
-      <p>Defines the scalar type used throughout the library. Prime fields use plain <code>int</code>; extension fields use a compact integer label into precomputed arithmetic tables.</p>
-      <div class="calls"><code>GF2</code><code>GF3</code><code>GF4</code><code>GF5</code><code>GF8</code><code>GF16</code><code>Field&lt;p,r&gt;::T</code></div>
-      <div class="meta">
-        <div><b>Parameters</b><span>p,r: field characteristic and extension degree<br>T: scalar type used by matrices and polynomials<br>gf_from_int: injects an integer into the prime subfield<br>gf_to_raw_index: converts a field element to a digit label</span></div>
-        <div><b>Assumptions</b><span>Only prime-power cardinalities supported by the hardcoded tables are valid; non-prime-power bases such as 6 or 10 are deliberately absent.</span></div>
-        <div><b>Time</b><span>O(1) per operation.</span></div>
-        <div><b>Memory</b><span>O(1), plus global lookup tables up to MAX_GF.</span></div>
-        <div><b>Thread safety</b><span>Read-only field arithmetic is thread-safe after static/global initialization; writes to user matrices are not synchronized.</span></div>
-      </div>
-      
-      
-    </article>
-    
-    <article class="api" id="matrixview-and-matrix">
-      <div class="api-head"><div class="api-name">MatrixView and Matrix</div><div class="badges"><span class="badge">linear algebra</span><span class="badge">row-major</span></div></div>
-      <div class="proto"><pre><code>template&lt;class F&gt;
-struct MatrixView : MatrixBase&lt;MatrixView&lt;F&gt;, F&gt; {
-    typename F::T* values;
-    int m, n;
-    MatrixView();
-    MatrixView(typename F::T* values, int m, int n);
-};
-
-template&lt;class F&gt;
-struct Matrix : MatrixBase&lt;Matrix&lt;F&gt;, F&gt; {
-    typename F::T* values;
-    int m, n;
-    Matrix();
-    Matrix(int m, int n);
-    Matrix(const MatrixView&lt;F&gt;&amp; view);       // explicit deep copy
-    Matrix(int m, int n, std::initializer_list&lt;int&gt; init);
-    Matrix(const Matrix&amp;) = delete;
-    Matrix&amp; operator=(const Matrix&amp;) = delete;
-    Matrix(Matrix&amp;&amp;) noexcept;
-    Matrix&amp; operator=(Matrix&amp;&amp;) noexcept;
-    MatrixView&lt;F&gt; view();
-};</code></pre></div>
-      <p><code>MatrixView</code> is a non-owning view over row-major storage. <code>Matrix</code> owns its storage and intentionally disables accidental copy construction/assignment; constructing from a view performs an explicit deep copy.</p>
-      <div class="calls"><code>Matrix&lt;F&gt;</code><code>MatrixView&lt;F&gt;</code><code>view()</code><code>set_id()</code><code>set_zero()</code></div>
-      <div class="meta">
-        <div><b>Parameters</b><span>values: contiguous row-major data<br>m,n: rows and columns<br>initializer_list: interpreted through gf_from_int</span></div>
-        <div><b>Assumptions</b><span>Views must not outlive the pointed storage. Operations assume compatible field type F.</span></div>
-        <div><b>Time</b><span>Construction O(mn); element access O(1); deep copy O(mn).</span></div>
-        <div><b>Memory</b><span>Matrix owns O(mn) field elements; MatrixView owns O(1).</span></div>
-        <div><b>Thread safety</b><span>Independent matrices/views are safe. Concurrent writes to the same storage are not safe.</span></div>
-      </div>
-      
-      
-    </article>
-    
-    <article class="api" id="matrixbase-linear-algebra">
-      <div class="api-head"><div class="api-name">MatrixBase linear algebra</div><div class="badges"><span class="badge">rank</span><span class="badge">inverse</span><span class="badge">determinant tests</span></div></div>
-      <div class="proto"><pre><code>template&lt;class Derived, class F&gt;
-struct MatrixBase {
-    int rows() const;
-    int cols() const;
-    typename F::T* data();
-
-    int rank(MatrixView&lt;F&gt; tmpPivoted) const;
-    int rank() const;
-
-    int checkDet(MatrixView&lt;F&gt; tmpMatT,
-                 MatrixView&lt;F&gt; tmpInv,
-                 MatrixView&lt;F&gt; tmpiAc,
-                 MatrixView&lt;F&gt; tmpriA) const;
-    int checkDet() const;
-
-    Matrix&lt;F&gt; get_inverse(MatrixView&lt;F&gt; tmpMatT,
-                          MatrixView&lt;F&gt; tmpiAc,
-                          MatrixView&lt;F&gt; tmpriA) const;
-    Matrix&lt;F&gt; get_inverse() const;
-
-    void reduce();
-    bool save_svg(const char* filename,
-                  int cell_size = 24,
-                  int margin = 6,
-                  bool draw_grid = true) const;
-};</code></pre></div>
-      <p>Common CRTP interface for owning matrices and views. It provides rank computations, a fast leading-minor determinant test used for digital-net admissibility checks, inversion, modular reduction, and SVG export.</p>
-      <div class="calls"><code>combination.rank()</code><code>S1.save_svg(&quot;matrix1.svg&quot;)</code><code>S2 * S1.get_inverse()</code></div>
-      <div class="meta">
-        <div><b>Parameters</b><span>tmp*: scratch matrices/vectors avoiding repeated allocations<br>checkDet: returns -1 if all tested leading minors pass, otherwise returns the failing index<br>save_svg: writes a colored matrix image</span></div>
-        <div><b>Assumptions</b><span><code>rank</code> performs robust row/column pivoting. <code>checkDet</code> assumes the no-pivot pattern typical of Sobol matrices and row-stack combinations; it is not a generic determinant routine.</span></div>
-        <div><b>Time</b><span>rank O(mn·min(m,n)) by Gaussian elimination. inverse/checkDet roughly O(m³) for large matrices, with optimized small-size and incremental determinant-lemma paths.</span></div>
-        <div><b>Memory</b><span>Scratch overloads use caller-provided O(m²) buffers; allocation overloads allocate internally.</span></div>
-        <div><b>Thread safety</b><span>Const operations are safe if matrix data are not concurrently mutated. Scratch buffers must be private to each thread.</span></div>
-      </div>
-      <p class="note warn">Caveat: <code>checkDet</code> is designed for fast admissibility/progressive checks, not for arbitrary matrices requiring pivoting.</p>
-      
-    </article>
-    
-    <article class="api" id="pascal-matrices">
-      <div class="api-head"><div class="api-name">Pascal matrices</div><div class="badges"><span class="badge">Sobol transforms</span><span class="badge">static cache</span></div></div>
-      <div class="proto"><pre><code>template&lt;class F, int N, int Power = 1&gt;
+template&lt;class F, int N, int Power&gt;
 struct PascalPowIntMatrix {
     static MatrixView&lt;F&gt; value();
 };
 
-template&lt;class F, int N, int Power = 1&gt;
+template&lt;class F, int N, int Power&gt;
 struct PascalTranslateFieldMatrix {
     static MatrixView&lt;F&gt; value();
 };
 
 template&lt;class F&gt;
-void fill_pascal_int(MatrixView&lt;F&gt;&amp; out, int power_int);
-
-template&lt;class F&gt;
-void fill_pascal_field(MatrixView&lt;F&gt;&amp; out, typename F::T power_field);</code></pre></div>
-      <p>Builds Pascal-type upper-triangular matrices over a finite field. The integer-power variant corresponds to powers of the Pascal matrix; the field-translation variant corresponds to translating polynomials by a field element, as used in Sobol-style characteristic matrices.</p>
-      <div class="calls"><code>PascalPowIntMatrix&lt;F,9&gt;::value()</code><code>PascalTranslateFieldMatrix&lt;F,9,3&gt;::value()</code></div>
-      <div class="meta">
-        <div><b>Parameters</b><span>F: finite field<br>N/out: square matrix size<br>Power/power_*: integer or field translation/power parameter</span></div>
-        <div><b>Assumptions</b><span>Output must be square. Static-cache wrappers return a view into a template-specific static buffer.</span></div>
-        <div><b>Time</b><span>O(N²) to initialize; O(1) for later cached access.</span></div>
-        <div><b>Memory</b><span>O(N²) static storage per template instantiation for cached wrappers; caller-provided output for fill functions.</span></div>
-        <div><b>Thread safety</b><span>Cached <code>value()</code> uses a static buffer and flag; avoid concurrent first calls to the same instantiation. After initialization, read-only use is safe.</span></div>
-      </div>
-      
-      
-    </article>
-    
-    <article class="api" id="tensor-product">
-      <div class="api-head"><div class="api-name">Tensor product</div><div class="badges"><span class="badge">Kronecker product</span><span class="badge">truncated output</span></div></div>
-      <div class="proto"><pre><code>template&lt;class F&gt;
-void tensor_product(const MatrixView&lt;F&gt; A,
-                    const MatrixView&lt;F&gt; B,
+void tensor_product(MatrixView&lt;F&gt; A,
+                    MatrixView&lt;F&gt; B,
                     MatrixView&lt;F&gt; result,
                     int truncate_row = -1,
-                    int truncate_col = -1);
-
-template&lt;class F&gt;
-void tensor_product_full(const MatrixView&lt;F&gt;&amp; A,
-                         const MatrixView&lt;F&gt;&amp; B,
-                         MatrixView&lt;F&gt; result);
-
-template&lt;class F&gt;
-void tensor_product_truncated(const MatrixView&lt;F&gt;&amp; A,
-                              const MatrixView&lt;F&gt;&amp; B,
-                              MatrixView&lt;F&gt; result,
-                              int truncate_row,
-                              int truncate_col);</code></pre></div>
-      <p>Computes the Kronecker/tensor product of two finite-field matrices, optionally only the top-left truncated block.</p>
-      <div class="calls"><code>tensor_product(P, triu.view(), full_product.view())</code><code>tensor_product(P, triu.view(), truncated_product.view(), 15, 15)</code></div>
-      <div class="meta">
-        <div><b>Parameters</b><span>A,B: input matrices<br>result: output storage<br>truncate_row/col: top-left dimensions, or full product if negative</span></div>
-        <div><b>Assumptions</b><span>Full result dimensions are A.rows·B.rows by A.cols·B.cols. Truncated output must be large enough for the requested block.</span></div>
-        <div><b>Time</b><span>O(truncate_row·truncate_col), O((Am·Bm)(An·Bn)) for full output.</span></div>
-        <div><b>Memory</b><span>No additional asymptotic memory beyond the output.</span></div>
-        <div><b>Thread safety</b><span>Thread-safe if inputs are read-only and each thread writes to its own result.</span></div>
+                    int truncate_col = -1);</code></pre>
+      <div class="dl">
+        <div>Purpose</div><div>Build Pascal matrices and tensor/Kronecker products for characteristic matrices and Sobol generator constructions.</div>
+        <div>Complexity</div><div>Pascal matrix filling is <code>O(n²)</code>. Full tensor product is <code>O(A.m A.n B.m B.n)</code>; truncated mode computes only the requested top-left block.</div>
+        <div>Thread safety</div><div>The static-cache <code>Pascal*Matrix::value()</code> helpers store one static buffer per template instantiation. Treat first-call initialization as not thread-safe unless protected externally; after initialization, read-only concurrent use is safe.</div>
       </div>
-      
-      
-    </article>
-    
-    <article class="api" id="sobolmatrix">
-      <div class="api-head"><div class="api-name">SobolMatrix</div><div class="badges"><span class="badge">direction matrices</span><span class="badge">hardcoded tables</span></div></div>
-      <div class="proto"><pre><code>template&lt;class F&gt;
-struct SobolMatrix : public Matrix&lt;F&gt; {
-    SobolMatrix(int matrix_size,
-                MatrixView&lt;F&gt; poly,
-                MatrixView&lt;F&gt; init);
+    </div>
 
+    <div class="api">
+      <header><div class="name">Sobol matrices and predefined tables</div><div class="tags"><span class="tag">Sobol</span><span class="tag">OneTwo</span><span class="tag">QuadQuad</span></div></header>
+<pre><code class="language-cpp">enum SobolPredefinedTable {
+    SOBOL_JOE_KUO_GF2,
+    SOBOL_ONETWO_SEQ_GF2,
+    SOBOL_FAURE_LEMIEUX_IS_DEC_GF2,
+    SOBOL_QUADQUAD_GF3
+};
+
+template&lt;class F&gt;
+struct SobolMatrix : public Matrix&lt;F&gt; {
     SobolMatrix(SobolPredefinedTable table,
                 int dim_number,
                 int matrix_size);
 };
 
-enum SobolPredefinedTable {
-    SOBOL_JOE_KUO_GF2,
-    SOBOL_ONETWO_SEQ_GF2,
-    SOBOL_FAURE_LEMIEUX_IS_DEC_GF2,
-    SOBOL_QUADQUAD_GF3
-};</code></pre></div>
-      <p>Constructs finite-field generator matrices for Sobol-type digital sequences. The low-level constructor expands a monic polynomial and initial columns. The table constructor selects one of the built-in direction-number families.</p>
-      <div class="calls"><code>SobolMatrix&lt;F&gt; S(20, poly.view(), init.view())</code><code>SobolMatrix&lt;GF2&gt; sobol(SOBOL_JOE_KUO_GF2, i, 25)</code></div>
-      <div class="meta">
-        <div><b>Parameters</b><span>matrix_size: number of rows/columns to generate<br>poly: lower coefficients of a monic recurrence polynomial<br>init: initial direction columns<br>table, dim_number: built-in family and dimension index</span></div>
-        <div><b>Assumptions</b><span>Polynomial and initial matrix conventions must match the selected field. Table constructors must be used with the correct base, e.g. GF(2) for Joe-Kuo/OneTwo/Faure-Lemieux and GF(3) for QuadQuad.</span></div>
-        <div><b>Time</b><span>O(matrix_size²·degree) for recurrence expansion.</span></div>
-        <div><b>Memory</b><span>O(matrix_size²) output storage.</span></div>
-        <div><b>Thread safety</b><span>Construction writes only to the new matrix; table data are read-only.</span></div>
+template&lt;class F&gt;
+void fill_sobol(MatrixView&lt;F&gt; out,
+                MatrixView&lt;F&gt; V,
+                MatrixView&lt;F&gt; poly);</code></pre>
+      <div class="dl">
+        <div>Purpose</div><div>Construct one generator matrix from a polynomial and initial direction columns, or directly from hardcoded tables.</div>
+        <div>Tables</div><div><code>SOBOL_JOE_KUO_GF2</code> uses Joe--Kuo direction numbers from the UNSW Sobol page. <code>SOBOL_FAURE_LEMIEUX_IS_DEC_GF2</code> uses the IS-dec table associated with Faure--Lemieux constructions. <code>SOBOL_ONETWO_SEQ_GF2</code> and <code>SOBOL_QUADQUAD_GF3</code> expose the library's named constructions.</div>
+        <div>Parameters</div><div><code>dim_number</code> is interpreted in the numbering of the selected table. <code>matrix_size</code> is the number of base digits available; point generation with too many points for the matrix size is invalid.</div>
+        <div>Complexity</div><div>Filling a matrix is <code>O(matrix_size² · degree)</code> in the straightforward recurrence. The stored matrix uses <code>O(matrix_size²)</code> field elements.</div>
+        <div>References</div><div>See Sobol, Joe--Kuo, Faure--Lemieux, Sobol' 2D projections, and Quad-Optimized LDS in the reference list.</div>
       </div>
-      <p class="note ">The method names <code>OneTwo</code> and <code>QuadQuad</code> are library/table names; the bibliography uses the actual paper titles and authors.</p>
-      <p class="muted"><b>Related references:</b> <a href="#ref-sobol1967">Sobol (1967)</a>, <a href="#ref-joekuo2003">Joe &amp; Kuo (2003)</a>, <a href="#ref-joekuo2008">Joe &amp; Kuo (2008)</a>, <a href="#ref-faurelemieux2019">Faure &amp; Lemieux (2019)</a>, <a href="#ref-onetwo2025">Bonneel et al. (2025)</a>, <a href="#ref-quadquad2024">Ostromoukhov et al. (2024)</a></p>
-    </article>
-    
-    <article class="api" id="combine-matrices-and-t-0-checks">
-      <div class="api-head"><div class="api-name">combine_matrices and t=0 checks</div><div class="badges"><span class="badge">digital nets</span><span class="badge">admissibility</span></div></div>
-      <div class="proto"><pre><code>template&lt;class F&gt;
+    </div>
+
+    <div class="api">
+      <header><div class="name">Building and testing digital nets</div><div class="tags"><span class="tag">t-values</span><span class="tag">determinants</span></div></header>
+<pre><code class="language-cpp">template&lt;class F&gt;
 void combine_matrices(const MatrixView&lt;F&gt;* matrices,
                       const int* row_choices,
                       int num_matrices,
@@ -673,81 +771,42 @@ void combine_matrices(const MatrixView&lt;F&gt;* matrices,
 
 template&lt;class F&gt;
 bool is_t0_progressive(const MatrixView&lt;F&gt;* matrices,
-                       int num_matrices);</code></pre></div>
-      <p><code>combine_matrices</code> stacks the first <code>row_choices[i]</code> rows of each generator matrix into one square test matrix. <code>is_t0_progressive</code> tests the progressive t=0 property by checking the relevant row combinations.</p>
-      <div class="calls"><code>combine_matrices(...)</code><code>is_t0_progressive(&amp;sequence[0], 3)</code></div>
-      <div class="meta">
-        <div><b>Parameters</b><span>matrices: array of generator matrices<br>row_choices: number of rows taken from each matrix<br>num_matrices: dimension s<br>max_columns/result: output width and storage</span></div>
-        <div><b>Assumptions</b><span>Matrices must have enough rows/columns. For t=0 progressive tests, row choices are weak compositions of the target precision.</span></div>
-        <div><b>Time</b><span>combine_matrices O(m²) copying for an m×m result. is_t0_progressive enumerates row compositions and uses checkDet/rank-style tests; exponential/combinatorial in dimension and precision.</span></div>
-        <div><b>Memory</b><span>combine_matrices uses only output storage. t=0 checks use O(m²) scratch per test path.</span></div>
-        <div><b>Thread safety</b><span>Safe if each thread uses private output/scratch. MatrixRange examples in main show how to decode per-thread matrices safely.</span></div>
-      </div>
-      
-      
-    </article>
-    
-    <article class="api" id="t-values">
-      <div class="api-head"><div class="api-name">t_values</div><div class="badges"><span class="badge">Marion–Godin–L&#x27;Ecuyer</span><span class="badge">primary API</span></div></div>
-      <div class="proto"><pre><code>template&lt;class F&gt;
+                       int num_matrices,
+                       int max_m);
+
+template&lt;class F&gt;
 std::vector&lt;int&gt; t_values(const MatrixView&lt;F&gt;* matrices,
-                          int num_matrices);
+                          int dim,
+                          int max_m);
 
 template&lt;class F&gt;
 std::vector&lt;int&gt; t_values_naive(const MatrixView&lt;F&gt;* matrices,
-                                int num_matrices); // debug/reference</code></pre></div>
-      <p>Computes the sequence of t-values for a set of generator matrices. This is the primary implementation in the current library; the older exhaustive implementation is exposed as <code>t_values_naive</code> mainly to validate/debug results.</p>
-      <div class="calls"><code>t_values(&amp;sequence[0], sequence.size())</code><code>t_values_naive(&amp;sequence[0], sequence.size())</code></div>
-      <div class="meta">
-        <div><b>Parameters</b><span>matrices: array of generator matrices<br>num_matrices: sequence dimension s<br>return: t[m-1] is the t-value at precision m</span></div>
-        <div><b>Assumptions</b><span>All matrices should be square and large enough for the maximum precision of interest. The field type F defines the base.</span></div>
-        <div><b>Time</b><span>The optimized implementation follows the rank-profile strategy of Marion, Godin and L'Ecuyer; it avoids recomputing every determinant from scratch. Naive enumeration is much slower and combinatorial in s,m.</span></div>
-        <div><b>Memory</b><span>Typically O(m²) or O(m³)-scale working data plus composition/rank-profile state; exact constants depend on base and dimension.</span></div>
-        <div><b>Thread safety</b><span>Use independent scratch/state per call for parallel usage. Read-only matrix inputs can be shared.</span></div>
+                                int dim,
+                                int max_m);</code></pre>
+      <div class="dl">
+        <div>Purpose</div><div>Combine prefixes of generator matrices, test the linear-independence criterion of digital nets, and compute <em>t</em>-values for embedded prefixes.</div>
+        <div><code>combine_matrices</code></div><div>Copies the first <code>row_choices[i]</code> rows from each matrix into a stacked matrix. Time proportional to the number of copied coefficients; memory is the caller-provided output.</div>
+        <div><code>is_t0_progressive</code></div><div>Checks whether all row-prefix combinations required for <code>t=0</code> pass determinant tests up to <code>max_m</code>. Worst case is combinatorial in dimension and prefix size; early determinant failure can prune work.</div>
+        <div><code>t_values</code></div><div>Computes the vector of <em>t</em>-values for <code>m=1..max_m</code>, using the efficient algorithmic strategy of Marion--Godin--L'Ecuyer rather than the brute-force implementation.</div>
+        <div><code>t_values_naive</code></div><div>Reference/debug implementation. It is useful to validate the optimized routine on small cases, but should not be used for large searches.</div>
+        <div>Thread safety</div><div>Read-only input matrices are safe to share. Internal or caller-provided workspaces must not be shared unless externally synchronized.</div>
       </div>
-      <p class="note ">This section intentionally documents <code>t_values</code>, not <code>t_values_fast</code>: the latter name is not part of the current public library.</p>
-      <p class="muted"><b>Related references:</b> <a href="#ref-marion2020">Marion, Godin &amp; L’Ecuyer (2020)</a></p>
-    </article>
-    
-    <article class="api" id="point-generation">
-      <div class="api-head"><div class="api-name">Point generation</div><div class="badges"><span class="badge">digital sequence</span><span class="badge">coordinates</span></div></div>
-      <div class="proto"><pre><code>template&lt;class F&gt;
-std::vector&lt;double&gt; get_points(const MatrixView&lt;F&gt;* matrices,
-                               int dim,
-                               long long npts);
+    </div>
 
-template&lt;class F&gt;
+    <div class="api">
+      <header><div class="name">Point generation and scrambling</div><div class="tags"><span class="tag">coordinates</span><span class="tag">Owen scrambling</span></div></header>
+<pre><code class="language-cpp">template&lt;class F&gt;
 void get_points(const MatrixView&lt;F&gt;* matrices,
                 int dim,
-                long long npts,
-                double* points);
+                long long n_pts,
+                double* pts);
 
-template&lt;class F&gt;
-void draw_2D_points(MatrixView&lt;F&gt; M1,
-                    MatrixView&lt;F&gt; M2,
-                    int nb_points,
-                    const std::string&amp; svg_filename);
-
-template&lt;class F&gt;
-void MatrixBase&lt;...,F&gt;::get_point_coordinates(long long nb_points,
-                                              double* coords,
-                                              int stride = 1) const;</code></pre></div>
-      <p>Converts generator matrices into real coordinates in [0,1). Integer point indices are decomposed into base-q digits, multiplied by each generator matrix over GF(q), then converted back to radix-q fractions.</p>
-      <div class="calls"><code>get_points&lt;F&gt;(&amp;sequence[0], dim, n_pts)</code><code>draw_2D_points(S1.view(), S2.view(), ..., &quot;points.svg&quot;)</code></div>
-      <div class="meta">
-        <div><b>Parameters</b><span>matrices: generator matrices for each coordinate<br>dim: number of coordinates<br>npts: number of points<br>points: row-major npts×dim buffer</span></div>
-        <div><b>Assumptions</b><span>Generator matrices must have enough columns/digits for the largest requested index. Field labels define the digit order in extension fields.</span></div>
-        <div><b>Time</b><span>Generic implementation is O(npts·dim·m²) if using generic matrix-vector products of size m; optimized paths may reduce constants.</span></div>
-        <div><b>Memory</b><span>O(npts·dim) for returned coordinates plus O(m) temporary digit vectors per coordinate generation path.</span></div>
-        <div><b>Thread safety</b><span>Point generation is read-only on matrices; output buffers must be disjoint per thread.</span></div>
-      </div>
-      
-      
-    </article>
-    
-    <article class="api" id="owen-scrambling-and-digit-padding">
-      <div class="api-head"><div class="api-name">Owen scrambling and digit padding</div><div class="badges"><span class="badge">randomization</span><span class="badge">QMC</span></div></div>
-      <div class="proto"><pre><code>struct OwenTreeND;
+void padd_least_significant_digits(double* pts,
+                                   long long n_pts,
+                                   int dim,
+                                   int base,
+                                   int m,
+                                   long long seed);
 
 OwenTreeND make_random_owen_tree_nd(int dim,
                                     int base,
@@ -759,189 +818,233 @@ void apply_owen_permutation_real(const double* points_in,
                                  int npts,
                                  int dim,
                                  int m,
-                                 const OwenTreeND&amp; tree);
-
-void padd_least_significant_digits(double* pts,
-                                   long long n_pts,
-                                   int dim,
-                                   int base,
-                                   int m,
-                                   long long seed);</code></pre></div>
-      <p>Applies randomized digit permutations to point sets in base q. The library uses this to evaluate discrepancy curves under independent Owen-style randomizations and to randomize unused least-significant digits.</p>
-      <div class="calls"><code>make_random_owen_tree_nd(dim, base, m+3, 12345)</code><code>apply_owen_permutation_real(...)</code><code>padd_least_significant_digits(...)</code></div>
-      <div class="meta">
-        <div><b>Parameters</b><span>dim/base/depth: tree structure<br>seed: deterministic random seed<br>m: number of base-q digits<br>points_in/out: row-major arrays</span></div>
-        <div><b>Assumptions</b><span>Input coordinates are assumed in [0,1). Base and depth should match the digital sequence precision used to generate the points.</span></div>
-        <div><b>Time</b><span>O(npts·dim·m) for digit-wise scrambling.</span></div>
-        <div><b>Memory</b><span>O(size of permutation tree), roughly proportional to visited nodes up to dim/base/depth, plus output array.</span></div>
-        <div><b>Thread safety</b><span>Tree construction uses a local RNG. Applying a const tree is safe if output buffers are private.</span></div>
+                                 const OwenTreeND&amp; tree);</code></pre>
+      <div class="dl">
+        <div>Purpose</div><div>Convert generator matrices into real coordinates in <code>[0,1)^dim</code>, and apply randomized digit scrambling.</div>
+        <div>Complexity</div><div>Point generation is roughly <code>O(n_pts · dim · m²)</code> with dense matrix-vector multiplication, where <code>m</code> is the number of digits. Padding/scrambling are linear in the number of generated digits.</div>
+        <div>Memory</div><div>Output arrays are supplied by the caller and are stored point-major: <code>pts[point_id * dim + dim_id]</code>.</div>
+        <div>Thread safety</div><div>Safe with disjoint output arrays. Random-tree construction is deterministic for a given seed.</div>
       </div>
-      
-      
-    </article>
-    
-    <article class="api" id="discrepancy-evaluation">
-      <div class="api-head"><div class="api-name">Discrepancy evaluation</div><div class="badges"><span class="badge">star discrepancy</span><span class="badge">generalized L2</span></div></div>
-      <div class="proto"><pre><code>double generalized_l2_discrepancy(const double* points,
+    </div>
+
+    <div class="api">
+      <header><div class="name">Discrepancy metrics</div><div class="tags"><span class="tag">CPU</span><span class="tag">optional CUDA</span></div></header>
+<pre><code class="language-cpp">double generalized_l2_discrepancy(const double* points,
                                   int npts,
                                   int dim,
-                                  int block_size = 128);
+                                  int block_size = 128,
+                                  bool use_gpu = true);
 
 double star_discrepancy(const double* points,
                         int npts,
-                        int dim);
+                        int dim,
+                        bool gpu = true);
 
 int t_value_pointset(const double* points,
                      int npts,
                      int dim,
                      int base,
-                     bool dbg = false);</code></pre></div>
-      <p>Evaluates point-set quality directly in real coordinates. Generalized L2 discrepancy uses an exact O(N²d) formula with blocking. Star discrepancy is exact and uses branch-and-bound/bitset machinery for small-to-moderate cases. <code>t_value_pointset</code> verifies t-values from generated points.</p>
-      <div class="calls"><code>generalized_l2_discrepancy(&amp;pts[0], n_pts, dim)</code><code>star_discrepancy(&amp;scrambled[0], n_pts, dim)</code><code>t_value_pointset(&amp;pts[0], n_pts, dim, base)</code></div>
-      <div class="meta">
-        <div><b>Parameters</b><span>points: row-major N×dim coordinates<br>block_size: cache/blocking parameter for L2<br>base: digital-net base for pointset t-value verification</span></div>
-        <div><b>Assumptions</b><span>Coordinates should lie in [0,1); the implementation sanitizes boundary cases for exact star-discrepancy comparisons.</span></div>
-        <div><b>Time</b><span>generalized L2: O(N²d). star: worst-case exponential/combinatorial in dim and N, branch-and-bound prunes heavily in practice. t_value_pointset depends on base-adic occupancy tests.</span></div>
-        <div><b>Memory</b><span>generalized L2 uses O(Nd) plus block temporaries. star discrepancy uses coordinate lists and bit masks, roughly O(dim·N²/word_size) masks in the generic exact solver.</span></div>
-        <div><b>Thread safety</b><span>The routines are pure over input arrays. Each call owns its temporaries, so independent calls are thread-safe.</span></div>
+                     bool dbg = false);
+
+#ifdef TMS_USE_CUDA
+extern "C" double generalized_l2_discrepancy_squared_cuda(const double* h_points,
+                                                          int npts,
+                                                          int dim,
+                                                          int stride_dim = 0,
+                                                          int threads_per_block = 256,
+                                                          int i_chunk_size = 1024);
+
+extern "C" double generalized_l2_discrepancy_cuda(const double* h_points,
+                                                  int npts,
+                                                  int dim,
+                                                  int stride_dim = 0,
+                                                  int threads_per_block = 256,
+                                                  int i_chunk_size = 1024);
+
+extern "C" int star_discrepancy_cuda_exhaustive_feasible(const double* points,
+                                                         int npts,
+                                                         int dim,
+                                                         int stride_dim,
+                                                         unsigned long long max_candidate_boxes);
+
+extern "C" double star_discrepancy_exact_cuda_exhaustive(const double* points,
+                                                         int npts,
+                                                         int dim,
+                                                         int stride_dim,
+                                                         unsigned long long max_candidate_boxes);
+#endif</code></pre>
+      <div class="dl">
+        <div>Generalized L2</div><div>Uses the standard <code>O(npts² · dim)</code> pairwise formula. CPU code uses blocking; CUDA can accelerate the quadratic summation when built with <code>TMS_USE_CUDA</code>.</div>
+        <div>Star discrepancy</div><div>Exact star discrepancy is expensive. The CUDA exhaustive path enumerates the canonical candidate grid and is explicitly intended for low dimensions and validation; high-dimensional exact star discrepancy is combinatorial/exponential.</div>
+        <div><code>t_value_pointset</code></div><div>Computes a <em>t</em>-value from explicit real point coordinates after interpreting them in a given base; useful for validating exported points, but matrix-based <code>t_values</code> is preferable when generator matrices are available.</div>
+        <div>Memory</div><div>CPU L2 discrepancy works from host arrays and small reductions. CUDA routines copy/scan host point arrays on the device and allocate device reductions internally.</div>
+        <div>Thread safety</div><div>CPU routines are re-entrant for distinct inputs. CUDA routines share the current CUDA context and should be treated like ordinary CUDA host calls.</div>
       </div>
-      
-      
-    </article>
-    
-    <article class="api" id="matrixrange">
-      <div class="api-head"><div class="api-name">MatrixRange</div><div class="badges"><span class="badge">enumeration</span><span class="badge">randomized DFS</span></div></div>
-      <div class="proto"><pre><code>enum MatrixRangeTraversal {
-    MatrixRangeSequential,
-    MatrixRangeGlobalRandomized,
-    MatrixRangeDFSValuePermuted
+    </div>
+
+    <div class="api">
+      <header><div class="name">SVG plotting</div><div class="tags"><span class="tag">diagnostics</span><span class="tag">no GUI</span></div></header>
+<pre><code class="language-cpp">template&lt;class F&gt;
+void draw_2D_points(MatrixView&lt;F&gt; M1,
+                    MatrixView&lt;F&gt; M2,
+                    int nb_points,
+                    const std::string&amp; svg_filename);
+
+struct ProjectionHighlight {
+    int d0;
+    int d1;
+    const char* color;
+    double width;
 };
 
-template&lt;class F&gt;
-struct MatrixRange {
-    MatrixRange(MatrixView&lt;F&gt; min_matrix,
-                MatrixView&lt;F&gt; max_matrix,
-                MatrixRangeTraversal traversal,
-                uint64_t seed = 0);
+bool draw_2d_projections_svg(double* points,
+                             int dim,
+                             long long n_points,
+                             const char* filename,
+                             const ProjectionHighlight* highlights = 0,
+                             int n_highlights = 0,
+                             int cell_size = 90,
+                             int cell_inner_margin = 4,
+                             int outer_margin = 8,
+                             int label_band = 22,
+                             double point_radius = 0.55,
+                             const char* point_color = "#111111",
+                             double point_opacity = 0.25,
+                             const char* default_border_color = "#A8B0FF",
+                             double default_border_width = 1.2,
+                             int label_font_size = 11);
 
-    uint64_t size() const;
-    int rows() const;
-    int cols() const;
-    iterator begin();
-    iterator end();
-
-    void decode_step(uint64_t step,
-                     MatrixView&lt;F&gt; out) const;
-};</code></pre></div>
-      <p>Enumerates all finite-field matrices whose entries lie between two bounds. The demo uses it to list upper-triangular matrices, then decodes steps independently in OpenMP workers.</p>
-      <div class="calls"><code>MatrixRange&lt;F&gt; range(..., MatrixRangeDFSValuePermuted, 12345)</code><code>range.decode_step(s, local.view())</code></div>
-      <div class="meta">
-        <div><b>Parameters</b><span>min/max_matrix: lower and upper entry-wise bounds<br>traversal: deterministic/randomized order<br>seed: permutation seed<br>decode_step: random-access decoding into caller-owned storage</span></div>
-        <div><b>Assumptions</b><span>Bounds must have the same shape and field type. Fixed entries are represented by equal min/max values.</span></div>
-        <div><b>Time</b><span>Iteration size is the product of per-entry cardinalities. decode_step is O(mn) plus traversal/permutation overhead.</span></div>
-        <div><b>Memory</b><span>O(mn) per iterator/local matrix. Range object stores bounds and traversal data.</span></div>
-        <div><b>Thread safety</b><span>Preferred parallel usage is random-access <code>decode_step</code> into a thread-local Matrix, as in main.cpp.</span></div>
+bool plot_discrepancy_curves_svg(const std::vector&lt;DiscrepancyCurve&gt;&amp; curves,
+                                 const std::vector&lt;ReferenceCurveSpec&gt;&amp; refs,
+                                 const DiscrepancyPlotOptions&amp; opt,
+                                 const char* filename);</code></pre>
+      <div class="dl">
+        <div>Purpose</div><div>Produce lightweight SVG visual diagnostics without external plotting dependencies.</div>
+        <div>2D projections</div><div><code>draw_2d_projections_svg</code> draws all coordinate-pair projections of a point set in a grid and can highlight selected pairs.</div>
+        <div>Complexity</div><div>Projection plotting is <code>O(n_points · dim²)</code> SVG elements in the worst case. File size grows quickly with both point count and dimension.</div>
+        <div>Thread safety</div><div>Safe for independent point arrays and distinct output filenames.</div>
       </div>
-      
-      
-    </article>
-    
-    <article class="api" id="svg-plotting">
-      <div class="api-head"><div class="api-name">SVG plotting</div><div class="badges"><span class="badge">publication figures</span><span class="badge">no external dependency</span></div></div>
-      <div class="proto"><pre><code>struct DiscrepancyCurve {
-    std::vector&lt;int&gt; n_points;
-    std::vector&lt;double&gt; values;
-    std::string label;
-    // styling fields: color, stroke_width, opacity, dashed, ...
-};
-
-struct ReferenceCurveSpec {
-    std::string label;
-    double exponent;
-    double scale;
-    // styling fields
-};
-
-struct DiscrepancyPlotOptions {
-    std::string title, x_label, y_label;
-    int base;
-    PlotYAxisScale y_scale;
-    double x_tick_octave_step;
-    // layout and style fields
-};
-
-bool plot_discrepancy_curves_svg(
-    const std::vector&lt;DiscrepancyCurve&gt;&amp; curves,
-    const std::vector&lt;ReferenceCurveSpec&gt;&amp; refs,
-    const DiscrepancyPlotOptions&amp; opt,
-    const char* filename);</code></pre></div>
-      <p>Produces a standalone SVG chart for discrepancy curves, including optional asymptotic reference slopes such as N^{-1/2} and N^{-1}.</p>
-      <div class="calls"><code>plot_discrepancy_curves_svg(curves, refs, opt, &quot;star_vs_l2_discrepancy.svg&quot;)</code></div>
-      <div class="meta">
-        <div><b>Parameters</b><span>curves: measured values<br>refs: analytic reference slopes<br>opt: axis/layout settings<br>filename: SVG output path</span></div>
-        <div><b>Assumptions</b><span>Curve vectors must have matching lengths. Positive values are required for log-scale y axes.</span></div>
-        <div><b>Time</b><span>O(total plotted samples + ticks + labels).</span></div>
-        <div><b>Memory</b><span>O(total plotted samples).</span></div>
-        <div><b>Thread safety</b><span>Function-local output only; separate filenames are thread-safe.</span></div>
-      </div>
-      
-      
-    </article>
-    
     </div>
   </div>
 </section>
 
-<section id="workflow">
-  <div class="wrapper">
-    <h2>Typical workflows</h2>
-    <div class="grid2">
+<section id="gpu">
+  <div class="container">
+    <h2>CPU/GPU behavior</h2>
+    <div class="grid two">
       <div class="card">
-        <h3>Test a candidate digital sequence</h3>
-        <div class="code"><pre><code>std::vector&lt;MatrixView&lt;F&gt;&gt; seq(dim);
-// fill seq with generator matrices
-
-bool progressive = is_t0_progressive(&seq[0], dim);
-std::vector&lt;int&gt; t = t_values(&seq[0], dim);</code></pre></div>
-        <p>Use this for matrix-level quality checks. <code>is_t0_progressive</code> is stricter/specialized for t=0; <code>t_values</code> returns the full precision curve.</p>
+        <h3>Default CPU path</h3>
+        <p>
+          The CPU library is the baseline and requires only C++14. OpenMP is enabled by default when CMake can find it.
+          Matrix construction, rank, determinant tests, <em>t</em>-values, point generation, and SVG plotting work without CUDA.
+        </p>
       </div>
       <div class="card">
-        <h3>Evaluate points after randomization</h3>
-        <div class="code"><pre><code>std::vector&lt;double&gt; pts = get_points&lt;F&gt;(&seq[0], dim, npts);
+        <h3>Optional CUDA path</h3>
+        <p>
+          With <code>-DTMS_USE_CUDA=ON</code>, <code>tms_lib_cuda_kernels.cu</code> is added to the static library and
+          <code>TMS_USE_CUDA</code> exposes CUDA entry points for generalized L2 discrepancy and exhaustive star discrepancy.
+          The public wrappers keep <code>use_gpu/gpu</code> boolean switches so callers can fall back to CPU behavior.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
 
-OwenTreeND tree = make_random_owen_tree_nd(dim, base, m, seed);
-std::vector&lt;double&gt; scrambled(npts * dim);
-apply_owen_permutation_real(&pts[0], &scrambled[0],
-                            npts, dim, m, tree);
-
-double gl2 = generalized_l2_discrepancy(&scrambled[0], npts, dim);
-double star = star_discrepancy(&scrambled[0], npts, dim);</code></pre></div>
-        <p>This is the workflow used to generate the discrepancy plot in the demo.</p>
+<section id="complexity">
+  <div class="container">
+    <h2>Complexity summary</h2>
+    <div class="grid two">
+      <div class="card">
+        <h3>Fast linear algebra</h3>
+        <p>
+          Dense matrix multiplication is cubic in matrix size for square matrices. Rank is Gaussian-elimination-like.
+          <code>checkDet</code> is specialized for the anchored-minor tests appearing in digital-net construction and avoids
+          pivoting; it is faster than generic rank for the intended cases but not a replacement for robust determinant tests
+          on arbitrary matrices.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Search routines</h3>
+        <p>
+          <code>t_values</code> and <code>is_t0_progressive</code> are dominated by the number of prefix combinations and
+          linear-algebra tests. They are therefore highly sensitive to dimension, maximum digit depth, early failures, and
+          the chosen generator matrices.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Discrepancy</h3>
+        <p>
+          Generalized L2 discrepancy is quadratic in the number of points and linear in dimension. Exact star discrepancy
+          is combinatorial in dimension; use it for small dimensions or as a validation metric, not as a large-scale
+          high-dimensional benchmark.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Plotting</h3>
+        <p>
+          SVG point and projection plots are intentionally simple and portable. They are convenient for diagnostics, but
+          large point sets can produce very large SVG files.
+        </p>
       </div>
     </div>
   </div>
 </section>
 
 <section id="references">
-  <div class="wrapper">
-    <h2>References</h2>    
-    
-<div class="refs">
-  <div class="ref" id="ref-sobol1967"><b>I. M. Sobol’ (1967). “On the distribution of points in a cube and the approximate evaluation of integrals.”</b><span>USSR Computational Mathematics and Mathematical Physics, 7(4), 86–112. DOI: 10.1016/0041-5553(67)90144-9. Original Sobol sequence paper.</span></div>
-  <div class="ref" id="ref-joekuo2003"><b>S. Joe and F. Y. Kuo (2003). “Remark on Algorithm 659: Implementing Sobol’s quasirandom sequence generator.”</b><span>ACM Transactions on Mathematical Software. DOI: 10.1145/641876.641879. Direction numbers and implementation details for Sobol generators.</span></div>
-  <div class="ref" id="ref-joekuo2008"><b>S. Joe and F. Y. Kuo (2008). “Constructing Sobol sequences with better two-dimensional projections.”</b><span>SIAM Journal on Scientific Computing, 30(5), 2635–2654. DOI: 10.1137/070709359. Direction numbers optimized for 2D projections; see also F. Kuo’s UNSW Sobol direction-number page.</span></div>
-  <div class="ref" id="ref-faurelemieux2019"><b>H. Faure and C. Lemieux (2019). “Implementation of irreducible Sobol sequences in prime power bases.”</b><span>Mathematics and Computers in Simulation, 161, 13–22. DOI: 10.1016/j.matcom.2018.08.015. The library uses the IS-dec table among the hardcoded Sobol-style constructors.</span></div>
-  <div class="ref" id="ref-onetwo2025"><b>N. Bonneel, D. Coeurjolly, J.-C. Iehl and V. Ostromoukhov (2025). “Sobol’ Sequences with Guaranteed-Quality 2D Projections.”</b><span>ACM Transactions on Graphics, SIGGRAPH 2025. Library method name: <code>OneTwo</code>. The construction targets guaranteed-quality 2D projections in base 2.</span></div>
-  <div class="ref" id="ref-quadquad2024"><b>V. Ostromoukhov, N. Bonneel, D. Coeurjolly and J.-C. Iehl (2024). “Quad-Optimized Low-Discrepancy Sequences.”</b><span>ACM SIGGRAPH Conference Papers 2024. DOI: 10.1145/3641519.3657431. Library method name: <code>QuadQuad</code>; base-3 Sobol-style quadruplet construction with optimized 2D/4D projections.</span></div>
-  <div class="ref" id="ref-marion2020"><b>P. Marion, M. Godin and P. L’Ecuyer (2020). “An algorithm to compute the t-value of a digital net and of its projections.”</b><span>Journal of Computational and Applied Mathematics, 371, 112669. DOI: 10.1016/j.cam.2019.112669. Basis for the library’s optimized <code>t_values</code> routine.</span></div>
-</div>
-
+  <div class="container">
+    <h2>References</h2>
+    <ol class="refs">
+      <li>
+        I. M. Sobol. “On the distribution of points in a cube and the approximate evaluation of integrals.”
+        <em>USSR Computational Mathematics and Mathematical Physics</em>, 7(4), 1967.
+        <a href="https://doi.org/10.1016/0041-5553(67)90144-9">doi:10.1016/0041-5553(67)90144-9</a>.
+      </li>
+      <li>
+        S. Joe and F. Y. Kuo. “Remark on Algorithm 659: Implementing Sobol’s quasirandom sequence generator.”
+        <em>ACM Transactions on Mathematical Software</em>, 29(1), 2003.
+        <a href="http://doi.acm.org/10.1145/641876.641879">doi:10.1145/641876.641879</a>.
+      </li>
+      <li>
+        S. Joe and F. Y. Kuo. “Constructing Sobol sequences with better two-dimensional projections.”
+        <em>SIAM Journal on Scientific Computing</em>, 30(5), 2008.
+        <a href="https://dx.doi.org/10.1137/070709359">doi:10.1137/070709359</a>.
+        Direction-number tables: <a href="https://web.maths.unsw.edu.au/~fkuo/sobol/">UNSW Sobol sequence generator</a>.
+      </li>
+      <li>
+        C. Lemieux and H. Faure. “A construction of irreducible Sobol’ sequences.”
+        <a href="https://arxiv.org/abs/1910.04084">arXiv:1910.04084</a>.
+      </li>
+      <li>
+        N. Bonneel, D. Coeurjolly, J.-C. Iehl and V. Ostromoukhov.
+        “Sobol’ Sequences with Guaranteed-Quality 2D Projections.”
+        <em>ACM Transactions on Graphics</em> 44(4), SIGGRAPH 2025.
+        <a href="https://doi.org/10.1145/3730821">doi:10.1145/3730821</a>.
+      </li>
+      <li>
+        V. Ostromoukhov, N. Bonneel, D. Coeurjolly and J.-C. Iehl.
+        “Quad-Optimized Low-Discrepancy Sequences.”
+        <em>SIGGRAPH Conference Papers</em>, 2024.
+        <a href="https://doi.org/10.1145/3641519.3657431">doi:10.1145/3641519.3657431</a>.
+      </li>
+      <li>
+        P. Marion, M. Godin and P. L’Ecuyer.
+        “An algorithm to compute the t-value of a digital net and of its projections.”
+        <em>Journal of Computational and Applied Mathematics</em> 371, 2020.
+        <a href="https://arxiv.org/abs/1910.02277">arXiv:1910.02277</a>.
+      </li>
+    </ol>
   </div>
 </section>
 </main>
 
 <footer>
-  <div class="wrapper">Generated documentation page for <code>tms_lib</code>.</div>
+  <div class="container">
+    <p>tms_lib documentation page. Source repository: <a href="https://github.com/nbonneel/tms_lib">github.com/nbonneel/tms_lib</a>.</p>
+  </div>
 </footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
 </body>
 </html>
