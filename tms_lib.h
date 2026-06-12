@@ -24,7 +24,19 @@ struct DiscrepancyCurve;
 struct ReferenceCurveSpec;
 struct DiscrepancyPlotOptions;
 
-double generalized_l2_discrepancy(const double* points, int npts, int dim, int block_size = 128);
+double generalized_l2_discrepancy(const double* points, int npts, int dim, int block_size = 128, bool use_gpu = true);
+
+#ifdef TMS_USE_CUDA
+#ifdef __cplusplus
+extern "C" {
+#endif
+    double generalized_l2_discrepancy_squared_cuda(const double* h_points, int npts, int dim, int stride_dim = 0, int threads_per_block = 256, int i_chunk_size = 1024);
+    double generalized_l2_discrepancy_cuda(const double* h_points, int npts, int dim, int stride_dim = 0, int threads_per_block = 256, int i_chunk_size = 1024);
+#ifdef __cplusplus
+}
+#endif
+#endif
+
 double star_discrepancy(const double* points, int npts, int dim);
 void print_point_range(const double* points, int npts, int dim);
 int t_value_pointset(const double* points, int npts, int dim, int base, bool dbg = false);

@@ -482,22 +482,27 @@ double generalized_l2_discrepancy_squared_exact_runtime_aos(
 }
 
 
-
+double generalized_l2_discrepancy_squared_auto(
+    const double* points,
+    int npts,
+    int dim,
+    int block_size, 
+    bool use_gpu
+) {
+#ifdef TMS_USE_CUDA
+    if (use_gpu)
+        return generalized_l2_discrepancy_squared_cuda(points, npts, dim, dim);
+    else
+        return generalized_l2_discrepancy_squared_exact_runtime_aos(points, npts, dim, block_size);
+#else
+    return generalized_l2_discrepancy_squared_exact_runtime_aos(points, npts, dim, block_size);
+#endif
+}
 
 
 // O(n^2 d)
-double generalized_l2_discrepancy(const double* points,
-    int npts,
-    int dim,
-    int block_size) {
-    return std::sqrt(
-        generalized_l2_discrepancy_squared_exact_runtime_aos(
-            points,
-            npts,
-            dim,
-            block_size
-        )
-    );
+double generalized_l2_discrepancy(const double* points, int npts, int dim, int block_size, bool use_gpu) {
+    return std::sqrt(  generalized_l2_discrepancy_squared_auto(points, npts, dim, block_size, use_gpu)  );
 }
 
 struct StarDiscrepancyBB {
