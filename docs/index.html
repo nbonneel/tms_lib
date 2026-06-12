@@ -3,241 +3,127 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>tms_lib — documentation for digital nets and Sobol' sequences over Galois fields</title>
+<title>tms_lib — finite-field digital nets and Sobol sequences</title>
 <style>
 :root{
-  --bg:#0b1020; --bg2:#111a32; --panel:#ffffff; --panel2:#f7f9fe; --ink:#162033; --muted:#5f6f87;
-  --accent:#5ea0ff; --accent2:#7de4bd; --accent3:#ffd166; --danger:#ff8a8a; --line:#e6edf7;
-  --code:#0e172a; --shadow:0 22px 70px rgba(7,13,31,.20); --radius:22px;
+  --bg:#0b1020; --panel:#121a33; --panel2:#17213e; --ink:#f2f6ff; --muted:#aeb9d6;
+  --accent:#7dd3fc; --accent2:#a78bfa; --good:#86efac; --warn:#fde68a; --line:#2b375f;
+  --code:#07101f; --chip:#1d2a4a;
 }
-*{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:linear-gradient(180deg,#0b1020 0,#131b34 380px,#f4f7fc 381px,#f4f7fc 100%);line-height:1.55} a{color:#2368d8;text-decoration:none} a:hover{text-decoration:underline} code,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace} .wrap{max-width:1220px;margin:0 auto;padding:0 22px}.hero{color:white;padding:58px 0 34px}.badge{display:inline-flex;gap:8px;align-items:center;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);border-radius:999px;padding:8px 12px;font-size:13px;color:#dbe7ff}.hero h1{font-size:clamp(38px,7vw,86px);line-height:.95;margin:18px 0 16px;letter-spacing:-.06em}.hero p{max-width:850px;color:#c9d6ed;font-size:20px}.hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:28px;align-items:end}.quick{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:var(--radius);padding:22px;backdrop-filter:blur(8px)}.quick h3{margin:0 0 8px;color:white}.quick pre{white-space:pre-wrap;background:#050915;color:#dce8ff;border-radius:16px;padding:16px;overflow:auto}.nav{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}.nav .wrap{display:flex;gap:16px;overflow-x:auto;padding-top:10px;padding-bottom:10px}.nav a{color:#25324a;font-size:14px;white-space:nowrap;padding:7px 10px;border-radius:999px}.nav a:hover{background:#eaf1ff;text-decoration:none}.section{padding:34px 0}.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:28px;margin:18px 0}.card.flat{box-shadow:none}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.pill{display:inline-block;border-radius:999px;background:#eef5ff;color:#1d56a6;padding:4px 10px;font-size:12px;font-weight:700;margin:3px 5px 3px 0}.pill.green{background:#eafaf4;color:#116b4d}.pill.gold{background:#fff8db;color:#796014}.pill.red{background:#fff0f0;color:#9a3333}h2{font-size:34px;margin:0 0 12px;letter-spacing:-.03em}h3{font-size:23px;margin:24px 0 10px}h4{font-size:17px;margin:20px 0 8px}.lead{font-size:18px;color:#4e5f79;max-width:920px}.muted{color:var(--muted)}.api{width:100%;border-collapse:separate;border-spacing:0;margin:14px 0;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:white}.api th{background:#eef3fb;text-align:left;color:#26344d;font-size:13px;text-transform:uppercase;letter-spacing:.04em}.api th,.api td{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:top}.api tr:last-child td{border-bottom:0}.api code{background:#f0f4fa;border:1px solid #dbe5f0;border-radius:7px;padding:1px 5px;color:#0e3063}.sig{font-weight:700;color:#0e3063}.complexity{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#f4f7fc;border:1px solid #dfe7f2;border-radius:10px;padding:8px 10px;display:inline-block}.note{border-left:5px solid var(--accent);background:#f1f7ff;border-radius:14px;padding:14px 16px}.warn{border-left-color:var(--danger);background:#fff6f6}.ok{border-left-color:var(--accent2);background:#f2fff9}.figure{margin:18px 0;border:1px solid var(--line);background:white;border-radius:18px;padding:12px;box-shadow:0 10px 36px rgba(12,21,40,.08)}.figure img{width:100%;height:auto;display:block;border-radius:12px}.caption{font-size:14px;color:var(--muted);padding:8px 4px 0}pre.block{background:var(--code);color:#d9e6ff;border-radius:18px;padding:18px;overflow:auto;border:1px solid #253352}pre.block code{background:transparent;border:0;color:inherit;padding:0}.tocgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.tocgrid a{display:block;background:white;border:1px solid var(--line);border-radius:16px;padding:14px;color:#23304a;box-shadow:0 8px 28px rgba(20,34,70,.07)}.tocgrid a:hover{text-decoration:none;transform:translateY(-1px)}details{border:1px solid var(--line);border-radius:16px;background:white;margin:12px 0;overflow:hidden}summary{cursor:pointer;padding:14px 16px;font-weight:700;background:#f4f7fc}details>div{padding:0 16px 16px}.ref li{margin:8px 0}.footer{padding:40px 0 70px;color:#63728d}.small{font-size:13px}.tagline{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
-@media(max-width:900px){.hero-grid,.grid2,.grid3,.tocgrid{grid-template-columns:1fr}.hero h1{font-size:48px}.quick{margin-top:20px}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(180deg,#08101f 0,#0b1020 40%,#0c1328 100%);color:var(--ink);line-height:1.55}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+.wrapper{max-width:1180px;margin:0 auto;padding:0 24px}
+.hero{padding:56px 0 34px;border-bottom:1px solid var(--line);background:radial-gradient(circle at 20% 10%,rgba(125,211,252,.20),transparent 30%),radial-gradient(circle at 80% 0,rgba(167,139,250,.18),transparent 30%)}
+.kicker{display:inline-block;background:rgba(125,211,252,.12);border:1px solid rgba(125,211,252,.35);padding:5px 10px;border-radius:999px;color:#c8f2ff;font-weight:700;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+h1{font-size:clamp(38px,7vw,72px);line-height:.95;margin:20px 0 14px;letter-spacing:-.05em}
+.subtitle{max-width:880px;color:var(--muted);font-size:20px}
+.hero-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:28px;align-items:center;margin-top:28px}
+.card{background:rgba(18,26,51,.82);border:1px solid var(--line);border-radius:22px;padding:22px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.hero .card img{width:100%;display:block;background:#fff;border-radius:14px;padding:12px}
+.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px}
+.quick a{display:block;padding:12px 14px;background:var(--chip);border:1px solid var(--line);border-radius:14px;color:var(--ink);font-weight:650}
+section{padding:42px 0;border-bottom:1px solid rgba(43,55,95,.55)}
+h2{font-size:34px;margin:0 0 10px;letter-spacing:-.03em}
+h3{font-size:23px;margin:26px 0 10px;letter-spacing:-.02em}
+h4{font-size:17px;margin:18px 0 8px;color:#dce8ff}
+p{color:#d6def4}
+.muted{color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.figure img{width:100%;display:block;background:#fff;border-radius:16px;padding:12px}
+.figure figcaption{font-size:14px;color:var(--muted);margin-top:10px}
+.code, pre{background:var(--code);border:1px solid #1d2d52;border-radius:14px;padding:14px 16px;color:#dbeafe;overflow:auto}
+code{font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace}
+pre{white-space:pre;font-size:13px}
+.api-list{display:grid;gap:18px;margin-top:22px}
+.api{background:linear-gradient(180deg,rgba(23,33,62,.94),rgba(18,26,51,.94));border:1px solid var(--line);border-radius:22px;padding:22px}
+.api-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:12px}
+.api-name{font-size:24px;font-weight:780;letter-spacing:-.02em}
+.badges{display:flex;gap:8px;flex-wrap:wrap}
+.badge{font-size:12px;border:1px solid #344575;background:#18244a;color:#cdd8ff;border-radius:999px;padding:4px 9px}
+.proto{background:#07101f;border:1px solid #24375e;border-radius:14px;margin:12px 0;padding:13px 15px;overflow:auto}
+.proto pre{background:transparent;border:0;margin:0;padding:0}
+.meta{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:14px}
+.meta div{background:rgba(7,16,31,.65);border:1px solid #24375e;border-radius:14px;padding:11px}
+.meta b{display:block;color:#fff;margin-bottom:5px;font-size:13px}
+.meta span{color:var(--muted);font-size:13px}
+.calls{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.calls code{background:#1d2a4a;border:1px solid #344575;border-radius:999px;padding:5px 9px;color:#dbeafe}
+.note{border-left:4px solid var(--accent);background:rgba(125,211,252,.08);padding:12px 14px;border-radius:12px;color:#dbeafe}
+.warn{border-left-color:var(--warn);background:rgba(253,230,138,.08)}
+.refs{display:grid;gap:14px}
+.ref{padding:16px 18px;background:var(--panel);border:1px solid var(--line);border-radius:16px}
+.ref b{display:block;color:#fff}
+.ref span{color:var(--muted)}
+details{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 18px}
+summary{cursor:pointer;font-weight:700}
+footer{padding:36px 0;color:var(--muted)}
+@media(max-width:900px){.hero-grid,.grid2,.grid3{grid-template-columns:1fr}.quick{grid-template-columns:1fr 1fr}.meta{grid-template-columns:1fr 1fr}}
+@media(max-width:580px){.quick{grid-template-columns:1fr}.meta{grid-template-columns:1fr}.wrapper{padding:0 16px}}
 </style>
 </head>
 <body>
 <header class="hero">
-  <div class="wrap hero-grid">
-    <div>
-      <span class="badge">C++ template library · Galois fields · digital nets</span>
-      <h1>tms_lib</h1>
-      <p>A compact C++ library for building, testing and visualizing digital nets, <em>(t,m,s)</em>-nets and Sobol'-type sequences over arbitrary prime-power Galois fields <strong>GF(p<sup>r</sup>)</strong>.</p>
-      <div class="tagline">
-        <span class="pill">GF(p<sup>r</sup>) arithmetic</span>
-        <span class="pill">Sobol' matrices</span>
-        <span class="pill">Joe–Kuo / Faure–Lemieux / OneTwo / QuadQuad</span>
-        <span class="pill green">t-value computation</span>
-        <span class="pill gold">discrepancy tools</span>
+  <div class="wrapper">
+    <span class="kicker">tms_lib documentation</span>
+    <h1>Finite-field digital nets, Sobol matrices, and discrepancy tools.</h1>
+    <p class="subtitle">A compact C++ template library for building and testing <em>(t,m,s)</em> nets and Sobol-style digital sequences over arbitrary supported Galois fields GF(p<sup>r</sup>).</p>
+    <div class="hero-grid">
+      <div>
+        <div class="quick">
+          <a href="#quickstart">Quick start</a>
+          <a href="#api">API manual</a>
+          <a href="#examples">Figures</a>
+          <a href="#references">References</a>
+        </div>
+        <p class="muted">This page documents the current public API used by <code>main.cpp</code>. In particular, the optimized t-value routine is <code>t_values</code>; the older exhaustive routine is <code>t_values_naive</code> and is mainly useful for debugging.</p>
       </div>
-    </div>
-    <div class="quick">
-      <h3>Minimal usage</h3>
-      <pre><code>typedef GF3 F;
-const int n = 20;
-
-SobolMatrix&lt;F&gt; S1(SOBOL_QUADQUAD_GF3, 1, n);
-SobolMatrix&lt;F&gt; S2(SOBOL_QUADQUAD_GF3, 4, n);
-
-draw_2D_points(S1.view(), S2.view(), 2187, "points.svg");</code></pre>
+      <div class="card figure"><img src="points.svg" alt="2D digital point set"><figcaption>Example 2D point set generated from Sobol matrices over a finite field.</figcaption></div>
     </div>
   </div>
 </header>
-<nav class="nav"><div class="wrap">
-  <a href="#overview">Overview</a><a href="#mental-model">Mental model</a><a href="#quickstart">Quick start</a><a href="#examples">Examples</a><a href="#api">API reference</a><a href="#complexity">Complexity</a><a href="#threading">Thread safety</a><a href="#references">References</a>
-</div></nav>
-<main class="wrap">
-<section id="overview" class="section">
-  <div class="card">
-    <h2>Overview</h2>
-    <p class="lead"><strong>tms_lib</strong> works with generator matrices over finite fields. A digital sequence is represented by one square generator matrix per coordinate. The library can construct Pascal matrices, Sobol' matrices from arbitrary monic polynomials and initialization blocks, Sobol'-derived hardcoded tables, tensor products, point coordinates, rank tests, t-value curves, exact or practical discrepancy estimates, Owen scrambling and SVG diagnostics.</p>
-    <div class="grid3">
-      <div class="note ok"><strong>Field-generic.</strong><br>Use <code>Field&lt;p,r&gt;</code> or aliases such as <code>GF2</code>, <code>GF3</code>, <code>GF4</code>, <code>GF8</code>. Prime fields use raw integers; non-prime fields use table-backed <code>GF_ext&lt;p,r&gt;</code>.</div>
-      <div class="note"><strong>Matrix-centric.</strong><br><code>Matrix&lt;F&gt;</code> owns memory; <code>MatrixView&lt;F&gt;</code> is a non-owning view. Most routines accept views to avoid copies.</div>
-      <div class="note"><strong>Research oriented.</strong><br>The code exposes both construction and diagnostics: rank, determinant-prefix tests, t-values, point-set t-values, generalized L2 discrepancy and star discrepancy.</div>
-    </div>
-  </div>
-</section>
 
-<section id="mental-model" class="section">
-  <div class="card">
-    <h2>Mental model</h2>
-    <p>A digital point is produced by decomposing the point index <code>i</code> into base <code>q = p^r</code> digits, multiplying this digit vector by a generator matrix over <code>GF(q)</code>, and interpreting the output digits as a number in <code>[0,1)</code>. For an <em>s</em>-dimensional sequence, tms_lib stores <em>s</em> such matrices.</p>
-    <pre class="block"><code>index i  --base q digits--&gt;  a = (a0,a1,...)
-coordinate j: C_j a  over GF(q)
-real coordinate: 0.y0 y1 y2 ... in base q</code></pre>
-    <p>Sobol' matrices are generated from a monic recurrence polynomial</p>
-    <pre class="block"><code>P(x) = x^e + poly[e-1] x^(e-1) + ... + poly[1] x + poly[0]</code></pre>
-    <p>where <code>poly[k]</code> stores the coefficient of <code>x^k</code>; the leading coefficient is implicit. Initial direction columns are supplied as an <code>e × e</code> upper-triangular block.</p>
-  </div>
-</section>
-
-<section id="quickstart" class="section">
-  <div class="card">
+<main>
+<section id="quickstart">
+  <div class="wrapper">
     <h2>Quick start</h2>
-    <h3>1. Choose a field</h3>
-    <pre class="block"><code>typedef GF5 F;              // GF(5), prime field
-// or: typedef Field&lt;2,3&gt; F; // GF(8), extension field</code></pre>
-    <h3>2. Build generator matrices</h3>
-    <pre class="block"><code>Matrix&lt;F&gt; Id(9, 9); Id.set_id();
-const MatrixView&lt;F&gt;&amp; P = PascalPowIntMatrix&lt;F, 9, 1&gt;::value();
-const MatrixView&lt;F&gt;&amp; P3 = PascalPowIntMatrix&lt;F, 9, 3&gt;::value();
+    <p>Include <code>tms_lib.h</code>, choose a field through <code>Field&lt;p,r&gt;</code> or a provided alias such as <code>GF2</code>/<code>GF3</code>, build generator matrices, then ask the library for t-values, points, discrepancy, or SVG diagnostics.</p>
+    <div class="code"><pre><code>#include "tms_lib.h"
 
-std::vector&lt;MatrixView&lt;F&gt;&gt; sequence = { Id.view(), P, P3 };</code></pre>
-    <h3>3. Test quality or generate points</h3>
-    <pre class="block"><code>bool progressive = is_t0_progressive(&amp;sequence[0], int(sequence.size()));
-std::vector&lt;int&gt; t = t_values_fast(&amp;sequence[0], int(sequence.size()));
-std::vector&lt;double&gt; pts = get_points&lt;F&gt;(&amp;sequence[0], int(sequence.size()), 1000);</code></pre>
+typedef GF2 F;
+
+const int dim = 5;
+const int matrix_size = 25;
+std::vector&lt;Matrix&lt;F&gt;&gt; matrices(dim);
+std::vector&lt;MatrixView&lt;F&gt;&gt; views(dim);
+
+for (int d = 0; d &lt; dim; ++d) {
+    SobolMatrix&lt;F&gt; sobol(SOBOL_JOE_KUO_GF2, d, matrix_size);
+    matrices[d] = sobol.view();      // explicit deep copy from the view
+    views[d] = matrices[d].view();
+}
+
+std::vector&lt;int&gt; t = t_values(&views[0], dim);
+std::vector&lt;double&gt; pts = get_points&lt;F&gt;(&views[0], dim, 512);
+
+double star = star_discrepancy(&pts[0], 512, dim);
+double gl2  = generalized_l2_discrepancy(&pts[0], 512, dim);</code></pre></div>
+    <p class="note">Most algorithms are template-based and operate directly in the field <code>F</code>. For extension fields, arithmetic is performed through precomputed tables; for prime fields, the scalar type is plain <code>int</code>.</p>
   </div>
 </section>
 
-<section id="examples" class="section">
-  <div class="card">
-    <h2>Illustrated examples from <code>main.cpp</code></h2>
-    <p class="lead">The demo program constructs Pascal and Sobol' matrices, checks ranks and t-values, draws generator matrices and point sets, applies Owen scrambling, and plots star versus generalized L2 discrepancy.</p>
+<section id="examples">
+  <div class="wrapper">
+    <h2>Example outputs from <code>main.cpp</code></h2>
     <div class="grid3">
-      <div class="figure"><img src="points.svg" alt="2D digital point set"><div class="caption">2D points generated from two Sobol-type matrices.</div></div>
-      <div class="figure"><img src="matrix1.svg" alt="Generator matrix SVG"><div class="caption">A generator matrix drawn cell-by-cell over a finite field.</div></div>
-      <div class="figure"><img src="star_vs_l2_discrepancy.svg" alt="Star and L2 discrepancy plot"><div class="caption">A discrepancy comparison curve produced by the plotting helpers.</div></div>
+      <figure class="figure card"><img src="points.svg" alt="Points"><figcaption><b>points.svg</b> — first points of a two-dimensional digital sequence.</figcaption></figure>
+      <figure class="figure card"><img src="matrix1.svg" alt="Matrix"><figcaption><b>matrix1.svg</b> — finite-field generator matrix rendered directly as an SVG grid.</figcaption></figure>
+      <figure class="figure card"><img src="star_vs_l2_discrepancy.svg" alt="Discrepancy chart"><figcaption><b>star_vs_l2_discrepancy.svg</b> — star discrepancy vs. generalized L2 discrepancy under Owen scrambling.</figcaption></figure>
     </div>
-  </div>
-</section>
-
-<section id="api" class="section">
-  <div class="card">
-    <h2>API reference</h2>
-    <p class="lead">This section documents the routines and classes exercised by <code>main.cpp</code>, plus their key assumptions, costs and thread-safety constraints.</p>
-
-    <h3>Finite fields</h3>
-    <table class="api"><thead><tr><th>Symbol</th><th>Purpose and parameters</th><th>Assumptions / notes</th><th>Cost</th></tr></thead><tbody>
-      <tr><td class="sig"><code>GFCardinality&lt;p,r&gt;::value</code></td><td>Compile-time cardinality <code>p^r</code>.</td><td><code>p</code> must be prime for mathematical correctness; no runtime primality test.</td><td><span class="complexity">compile-time</span></td></tr>
-      <tr><td class="sig"><code>GF_ext&lt;p,r&gt;</code></td><td>Storage wrapper for extension-field elements. The raw label is <code>.v</code>.</td><td>Arithmetic is table-backed through global arrays <code>add_non_prime</code>, <code>mul_non_prime</code>, etc. Valid for fields covered by the tables, currently up to <code>MAX_GF</code>.</td><td><span class="complexity">O(1)</span></td></tr>
-      <tr><td class="sig"><code>Field&lt;p,r&gt;</code></td><td>Field traits: <code>T</code>, <code>zero()</code>, <code>one()</code>, <code>add</code>, <code>sub</code>, <code>mul</code>, <code>div</code>, <code>neg</code>.</td><td>For <code>r=1</code>, <code>T=int</code>; for <code>r&gt;1</code>, <code>T=GF_ext&lt;p,r&gt;</code>.</td><td><span class="complexity">O(1)</span></td></tr>
-      <tr><td class="sig"><code>gf_reduce&lt;p,r&gt;(x)</code></td><td>Reduces a prime-field integer modulo <code>p</code>; identity for extension-field wrappers.</td><td>Call after prime-field integer arithmetic if values may be outside <code>[0,p)</code>.</td><td><span class="complexity">O(1)</span></td></tr>
-      <tr><td class="sig"><code>gf_from_int&lt;p,r&gt;(x)</code></td><td>Injects an integer into the prime subfield.</td><td>For raw GF(q) labels in extension fields, use <code>T{label}</code> instead of prime-subfield injection.</td><td><span class="complexity">O(1)</span></td></tr>
-      <tr><td class="sig"><code>gf_to_raw_index&lt;F&gt;(x)</code></td><td>Maps a field element to the digit label used when converting to real coordinates.</td><td>Returns <code>x</code> for prime fields and <code>x.v</code> for extension fields.</td><td><span class="complexity">O(1)</span></td></tr>
-    </tbody></table>
-
-    <h3>Matrices and views</h3>
-    <table class="api"><thead><tr><th>Symbol</th><th>Parameters and behavior</th><th>Assumptions / ownership</th><th>Cost</th></tr></thead><tbody>
-      <tr><td class="sig"><code>MatrixView&lt;F&gt;</code></td><td>Non-owning view: <code>values</code>, <code>m</code>, <code>n</code>. Supports indexing and inherits <code>MatrixBase</code> helpers.</td><td>The pointed memory must outlive the view. Pass by value is cheap.</td><td><span class="complexity">O(1) storage</span></td></tr>
-      <tr><td class="sig"><code>Matrix&lt;F&gt;</code></td><td>Owning row-major dense matrix. Constructors: empty, size, from view, initializer list. Copy is deleted; move is supported.</td><td>Initializer-list integers are injected with <code>gf_from_int</code>. Use <code>view()</code> to pass to algorithms.</td><td><span class="complexity">O(mn) memory</span></td></tr>
-      <tr><td class="sig"><code>MatrixBase::set_zero()</code>, <code>set_id()</code></td><td>Fill matrix with zeros or identity.</td><td><code>set_id()</code> assumes a square or at least sufficiently allocated row-major matrix; it uses <code>cols()</code> for stride.</td><td><span class="complexity">O(mn)</span></td></tr>
-      <tr><td class="sig"><code>operator*</code></td><td>Dense matrix product over <code>F</code>.</td><td>Dimensions must match. Intermediate values are reduced into the field.</td><td><span class="complexity">O(mnk)</span></td></tr>
-      <tr><td class="sig"><code>MatrixBase::rank()</code></td><td>Rank via Gaussian elimination with row and column pivoting.</td><td>Robust for arbitrary dense matrices. Overload accepting <code>tmpPivoted</code> avoids allocation.</td><td><span class="complexity">O(min(m,n)·mn)</span>; memory <span class="complexity">O(mn)</span> unless workspace supplied.</td></tr>
-      <tr><td class="sig"><code>MatrixBase::get_inverse()</code></td><td>Inverse of a square matrix.</td><td>The optimized workspace version assumes the pivot pattern used by the determinant-update code; for arbitrary matrices prefer rank if only singularity is needed.</td><td>About <span class="complexity">O(n^3)</span>; memory <span class="complexity">O(n^2)</span>.</td></tr>
-      <tr><td class="sig"><code>MatrixBase::checkDet()</code></td><td>Tests leading anchored square subdeterminants and returns first failing row, or <code>-1</code> if all tested prefixes are nonsingular.</td><td>Specialized to matrices where no pivoting is needed, typical of Sobol-type triangular/combined matrices. Not a general determinant test: anti-diagonal matrices are a counterexample.</td><td>Closed forms up to small sizes, then update formulas; roughly <span class="complexity">O(n^3)</span> worst-case, low constants. Workspace overload avoids allocations.</td></tr>
-      <tr><td class="sig"><code>MatrixBase::save_svg()</code></td><td>Writes an SVG grid rendering of the matrix.</td><td>File-system operation; values are mapped to a small pastel palette.</td><td><span class="complexity">O(mn)</span></td></tr>
-    </tbody></table>
-
-    <h3>Pascal, tensor products and Sobol' matrices</h3>
-    <table class="api"><thead><tr><th>Symbol</th><th>Parameters and behavior</th><th>Assumptions</th><th>Cost</th></tr></thead><tbody>
-      <tr><td class="sig"><code>pascal_pow_int&lt;p,r&gt;(mat,n,power)</code></td><td>Fills an <code>n×n</code> Pascal translation/power matrix using an integer power injected into the field.</td><td><code>mat</code> must point to <code>n*n</code> entries.</td><td><span class="complexity">O(n²)</span></td></tr>
-      <tr><td class="sig"><code>pascal_pow_field&lt;p,r&gt;(mat,n,power)</code></td><td>Same construction but <code>power</code> is already a field element. This is the version used for polynomial translation <code>f(x+a)</code>.</td><td>Use for extension-field labels such as <code>GF4</code> element <code>3</code>.</td><td><span class="complexity">O(n²)</span></td></tr>
-      <tr><td class="sig"><code>PascalPowIntMatrix&lt;F,N,Power&gt;::value()</code></td><td>Compile-time cached Pascal matrix.</td><td>Uses a function-local static buffer. First call initializes it.</td><td>First call <span class="complexity">O(N²)</span>; later <span class="complexity">O(1)</span>.</td></tr>
-      <tr><td class="sig"><code>PascalTranslateFieldMatrix&lt;F,N,Power&gt;::value()</code></td><td>Compile-time cached field-translation Pascal matrix.</td><td>Same static-buffer caveat.</td><td>First call <span class="complexity">O(N²)</span>; later <span class="complexity">O(1)</span>.</td></tr>
-      <tr><td class="sig"><code>tensor_product(A,B,result[,rows,cols])</code></td><td>Kronecker/tensor product, optionally truncated to a top-left block.</td><td><code>result</code> must have sufficient storage. Truncated mode avoids computing unused blocks.</td><td>Full <span class="complexity">O(Am·An·Bm·Bn)</span>; truncated proportional to requested block size.</td></tr>
-      <tr><td class="sig"><code>SobolMatrix&lt;F&gt;(n,poly,init)</code></td><td>Constructs an <code>n×n</code> Sobol generator matrix from a monic recurrence polynomial and initial columns.</td><td><code>poly</code> stores lower coefficients only; <code>init</code> is an <code>e×e</code> initial block. The leading coefficient is implicit.</td><td><span class="complexity">O(n²e)</span> approximately; memory <span class="complexity">O(n²)</span>.</td></tr>
-      <tr><td class="sig"><code>SobolMatrix&lt;F&gt;(table,dim,n)</code></td><td>Constructs a Sobol-type matrix from a predefined table.</td><td>Table base must match <code>F</code>: GF(2) tables with <code>GF2</code>, QuadQuad with <code>GF3</code>.</td><td>Same as Sobol construction plus table lookup.</td></tr>
-      <tr><td class="sig"><code>SobolPredefinedTable</code></td><td>Available families: <code>SOBOL_JOE_KUO_GF2</code>, <code>SOBOL_ONETWO_SEQ_GF2</code>, <code>SOBOL_FAURE_LEMIEUX_IS_DEC_GF2</code>, <code>SOBOL_QUADQUAD_GF3</code>.</td><td>Dimension numbering follows the source tables. Faure–Lemieux includes the identity convention from its implementation.</td><td><span class="complexity">O(#table entries)</span> lookup unless indexed externally.</td></tr>
-    </tbody></table>
-
-    <h3>Digital-net tests and t-values</h3>
-    <table class="api"><thead><tr><th>Symbol</th><th>Parameters and behavior</th><th>Assumptions</th><th>Cost</th></tr></thead><tbody>
-      <tr><td class="sig"><code>combine_matrices(matrices,row_choices,num_matrices,max_columns,result)</code></td><td>Builds the square matrix obtained by stacking the first <code>row_choices[i]</code> rows of each generator matrix.</td><td><code>sum(row_choices)</code> should match the number of rows needed in <code>result</code>. The routine copies full rows of length <code>max_columns</code>.</td><td><span class="complexity">O(m·max_columns)</span>, where <code>m=sum row_choices</code>.</td></tr>
-      <tr><td class="sig"><code>is_t0_progressive(matrices,dim)</code></td><td>Tests whether all relevant progressive leading-row combinations have full rank / nonzero determinant for <code>t=0</code>.</td><td>Designed for square generator matrices of the same size and same field. Internally relies on finite-field matrix tests.</td><td>Number of compositions times determinant/rank test. For matrix size <code>m</code> and dimension <code>s</code>, compositions are <code>C(m+s-1,s-1)</code>.</td></tr>
-      <tr><td class="sig"><code>t_values(matrices,dim)</code></td><td>Naive t-value curve: returns <code>t(m)</code> over increasing net sizes.</td><td>Exact but combinatorial; useful for validation and small sizes.</td><td>Roughly <span class="complexity">Σ_m C(m+s-1,s-1) · rank/det-cost</span>.</td></tr>
-      <tr><td class="sig"><code>t_values_fast(matrices,dim)</code></td><td>Faster t-value computation following the Marion–Godin–L'Ecuyer idea of avoiding repeated full tests.</td><td>Same mathematical result as the naive routine; should be preferred for nontrivial dimensions.</td><td>Still combinatorial in the number of row compositions, but with substantially lower incremental cost and memory reuse.</td></tr>
-      <tr><td class="sig"><code>t_value_pointset(points,npts,dim,base,dbg)</code></td><td>Computes a t-value directly from a finite point set by checking elementary intervals.</td><td>Points should lie in <code>[0,1)</code> and be compatible with a base-<code>base</code> digital structure. Intended for validating generated or scrambled point sets.</td><td>Depends on interval enumeration; practical for small/moderate <code>m=log_base(npts)</code>.</td></tr>
-    </tbody></table>
-
-    <h3>Point generation, scrambling and discrepancy</h3>
-    <table class="api"><thead><tr><th>Symbol</th><th>Parameters and behavior</th><th>Assumptions</th><th>Cost</th></tr></thead><tbody>
-      <tr><td class="sig"><code>MatrixBase::get_point_coordinates(nb_points,coords,stride)</code></td><td>Generates one coordinate from one generator matrix.</td><td>Matrix width determines the number of base-<code>q</code> digits. If more points are requested than the matrix can represent, the function prints a warning.</td><td><span class="complexity">O(nb_points · n²)</span> with current dense matrix-vector multiplication; memory <span class="complexity">O(n)</span> temporaries.</td></tr>
-      <tr><td class="sig"><code>get_points&lt;F&gt;(matrices,dim,npts)</code></td><td>Generates an interleaved array of <code>npts*dim</code> real coordinates.</td><td>All matrices must be valid views over the same field and sufficient digit width.</td><td><span class="complexity">O(dim · npts · n²)</span>; memory <span class="complexity">O(dim·npts)</span>.</td></tr>
-      <tr><td class="sig"><code>draw_2D_points(M1,M2,nb_points,svg_filename)</code></td><td>Exports a quick SVG scatterplot from two generator matrices.</td><td>Uses <code>get_point_coordinates</code> internally.</td><td><span class="complexity">O(nb_points · n²)</span>.</td></tr>
-      <tr><td class="sig"><code>make_random_owen_tree_nd(dim,base,depth,seed)</code></td><td>Creates a randomized nested Owen permutation tree.</td><td>Depth should cover the number of digits later permuted.</td><td>Memory roughly proportional to the number of stored tree nodes; exponential in depth in the worst case if fully expanded.</td></tr>
-      <tr><td class="sig"><code>apply_owen_permutation_real(in,out,npts,dim,m,tree)</code></td><td>Applies nested Owen scrambling to real-valued points.</td><td>Input and output buffers must have <code>npts*dim</code> doubles. Deterministic for a fixed tree.</td><td><span class="complexity">O(npts·dim·m)</span>.</td></tr>
-      <tr><td class="sig"><code>padd_least_significant_digits(pts,n_pts,dim,base,m,seed)</code></td><td>Adds randomized least-significant digits after finite-depth scrambling, useful for plotting or discrepancy estimates.</td><td>Mutates <code>pts</code> in place.</td><td><span class="complexity">O(n_pts·dim)</span>.</td></tr>
-      <tr><td class="sig"><code>generalized_l2_discrepancy(points,npts,dim,block_size)</code></td><td>Generalized L2 discrepancy of an arbitrary point set.</td><td>Input layout is interleaved: point <code>i</code>, dimension <code>j</code> at <code>points[i*dim+j]</code>. Block size tunes cache behavior.</td><td>Dominated by the pairwise term: <span class="complexity">O(npts²·dim)</span>; memory <span class="complexity">O(1)</span> beyond blocks.</td></tr>
-      <tr><td class="sig"><code>star_discrepancy(points,npts,dim)</code></td><td>Exact star discrepancy for small dimensions by enumerating candidate boxes.</td><td>Useful for validation and low-dimensional demos; combinatorial explosion in high dimension.</td><td>Approximately <span class="complexity">O(npts^dim · npts · dim)</span> in the brute-force view; practical only for modest <code>dim</code> and <code>npts</code>.</td></tr>
-    </tbody></table>
-
-    <h3>Enumeration and plotting</h3>
-    <table class="api"><thead><tr><th>Symbol</th><th>Parameters and behavior</th><th>Assumptions</th><th>Cost</th></tr></thead><tbody>
-      <tr><td class="sig"><code>MatrixRange&lt;F&gt;</code></td><td>Enumerates matrices bounded entrywise by <code>min_matrix</code> and <code>max_matrix</code>, with deterministic, globally randomized or DFS-value-permuted traversal modes.</td><td>Designed for constrained searches; fixed entries have identical min/max bounds. Iterator views refer to internal buffers.</td><td>Size is product of per-entry admissible values. Decoding one step is <span class="complexity">O(mn)</span>.</td></tr>
-      <tr><td class="sig"><code>DiscrepancyCurve</code></td><td>Curve data: <code>n_points</code>, <code>values</code>, label, style, point visibility.</td><td>Used only by SVG plotting.</td><td><span class="complexity">O(#samples)</span> storage.</td></tr>
-      <tr><td class="sig"><code>ReferenceCurveSpec</code></td><td>Reference power law such as <code>N^{-1/2}</code> or <code>N^{-1}</code>, with color and dashed style.</td><td>If scale is omitted/nonpositive, plotting can auto-normalize to the first data value.</td><td><span class="complexity">O(1)</span></td></tr>
-      <tr><td class="sig"><code>DiscrepancyPlotOptions</code></td><td>SVG plot configuration: title, axis labels, log/linear y-axis, dimensions, margins, legend, ticks and palette.</td><td>Plain data structure; no ownership of curves.</td><td><span class="complexity">O(1)</span></td></tr>
-      <tr><td class="sig"><code>plot_discrepancy_curves_svg(curves,refs,opt,filename)</code></td><td>Writes a publication-style SVG plot for discrepancy curves.</td><td>Input vectors must have matching <code>n_points</code> and <code>values</code> lengths. Returns <code>false</code> on file failure.</td><td><span class="complexity">O(total samples + refs·samples)</span>.</td></tr>
-    </tbody></table>
-  </div>
-</section>
-
-<section id="complexity" class="section">
-  <div class="card">
-    <h2>Complexity notes</h2>
-    <div class="grid2">
-      <div>
-        <h3>Discrepancy</h3>
-        <p><code>generalized_l2_discrepancy</code> is quadratic in the number of points and linear in dimension, because of its pairwise product term. It is therefore a good smooth diagnostic but not a large-scale online metric. <code>star_discrepancy</code> is much more expensive: exact star discrepancy requires examining candidate anchored boxes and should be treated as a small-dimensional validation tool.</p>
-      </div>
-      <div>
-        <h3>t-values and t=0 tests</h3>
-        <p>The naive t-value computation enumerates row-compositions of generator matrices. At depth <code>m</code> in dimension <code>s</code>, the number of weak compositions is <code>C(m+s-1,s-1)</code>. The faster routine reduces repeated algebraic work but does not remove the underlying combinatorial nature.</p>
-      </div>
-      <div>
-        <h3>Rank and determinant tests</h3>
-        <p><code>rank()</code> is general-purpose Gaussian elimination with pivoting. <code>checkDet()</code> is a targeted determinant-prefix test for matrices that behave like Sobol row-stacks; it is not a general substitute for rank.</p>
-      </div>
-      <div>
-        <h3>Memory</h3>
-        <p>Most matrix routines are dense and row-major. Prefer overloads accepting temporary workspaces inside large searches to avoid repeated <code>new[]</code>/<code>delete[]</code>. Generated point sets are stored as interleaved <code>double</code> arrays of size <code>npts*dim</code>.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="threading" class="section">
-  <div class="card">
-    <h2>Thread safety</h2>
-    <table class="api"><thead><tr><th>Component</th><th>Thread-safety status</th><th>Recommendation</th></tr></thead><tbody>
-      <tr><td><code>Matrix&lt;F&gt;</code> / <code>MatrixView&lt;F&gt;</code></td><td>Read-only concurrent access is safe if the underlying storage is not mutated. Writes through shared views are not synchronized.</td><td>Use per-thread matrices or explicitly synchronize writes.</td></tr>
-      <tr><td>Global finite-field tables</td><td>They are global read-only lookup tables after initialization.</td><td>Do not mutate them after worker threads start.</td></tr>
-      <tr><td><code>PascalPowIntMatrix::value()</code> / <code>PascalTranslateFieldMatrix::value()</code></td><td>Use function-local static buffers initialized on first call. C++11 guarantees thread-safe initialization, but the returned view points to shared mutable storage.</td><td>Treat returned matrices as read-only. If code may write, copy into a local <code>Matrix</code>.</td></tr>
-      <tr><td>Workspace overloads</td><td>Thread-safe when each thread supplies its own workspace.</td><td>Never share <code>tmpMatT</code>, <code>tmpInv</code>, etc. across concurrent calls.</td></tr>
-      <tr><td><code>MatrixRange</code> iterator</td><td>Iterator state is mutable. <code>decode_step()</code> into a thread-local matrix is suitable for OpenMP-style parallel loops.</td><td>Use one local <code>Matrix</code> per thread, as in <code>main.cpp</code>.</td></tr>
-      <tr><td>SVG output</td><td>File writes are not synchronized.</td><td>Use distinct filenames per thread or external synchronization.</td></tr>
-    </tbody></table>
-  </div>
-</section>
-
-<section id="gotchas" class="section">
-  <div class="card">
-    <h2>Common gotchas</h2>
-    <div class="note warn"><strong>Do not confuse field injection and raw labels.</strong> <code>gf_from_int</code> injects into the prime subfield. For extension-field digit labels, use <code>T{label}</code> only if the label is already in the library's GF(q) representation.</div>
-    <div class="note warn"><strong>Sobol polynomials are monic.</strong> The leading coefficient is implicit and should not be duplicated in <code>poly[]</code>.</div>
-    <div class="note warn"><strong><code>checkDet()</code> assumes a no-pivot determinant path.</strong> It is fast for the intended row-stack tests, but <code>rank()</code> is the robust general-purpose test.</div>
-    <div class="note warn"><strong>Views do not own memory.</strong> A <code>MatrixView</code> is only valid as long as the underlying <code>Matrix</code> or static buffer remains alive.</div>
-  </div>
-</section>
-
-<section id="references" class="section">
-  <div class="card">
-    <h2>References and data sources</h2>
-    <ul class="ref">
-      <li>I. M. Sobol', <em>On the distribution of points in a cube and the approximate evaluation of integrals</em>, USSR Computational Mathematics and Mathematical Physics, 1967.</li>
-      <li>S. Joe and F. Y. Kuo, <em>Remark on Algorithm 659: Implementing Sobol's quasirandom sequence generator</em>, ACM Transactions on Mathematical Software, 2003. <a href="http://doi.acm.org/10.1145/641876.641879">DOI</a>.</li>
-      <li>S. Joe and F. Y. Kuo, <em>Constructing Sobol sequences with better two-dimensional projections</em>, SIAM Journal on Scientific Computing, 2008. <a href="http://dx.doi.org/10.1137/070709359">DOI</a>. Tables: <a href="https://web.maths.unsw.edu.au/~fkuo/sobol/">UNSW Sobol' direction numbers</a>.</li>
-      <li>H. Faure and C. Lemieux, Sobol'-type implementations and IS-dec tables, as used in the library. See also the implementation reference provided by the author: <a href="https://arxiv.org/abs/1910.04084">arXiv:1910.04084</a>.</li>
-      <li>N. Bonneel, D. Coeurjolly, J.-C. Iehl, V. Ostromoukhov, <em>Sobol' Sequences with Guaranteed-Quality 2D Projections</em>, Sobol'-based binary sequences with t=1 behavior on selected 2D projections (<em>OneTwo sequence</em>). <a href="https://perso.liris.cnrs.fr/nicolas.bonneel/paper_sobol.pdf">ACM Trans. on Graphics (SIGGRAPH 2025)</a>.</li>
-      <li>V. Ostromoukhov, N. Bonneel, D. Coeurjolly, J.-C. Iehl <em>Quad-Optimized Low-Discrepancy Sequences</em>, base-3 Sobol'-type quadruplets with optimized properties (<em>QuadQuad sequence</em>). <a href="https://perso.liris.cnrs.fr/nicolas.bonneel/paper_quad.pdf">ACM SIGGRAPH 2024 (conference track)</a>.</li>
-      <li>P. Marion, P. Godin and P. L'Ecuyer, efficient computation of t-values for digital nets and sequences. <a href="https://www.sciencedirect.com/science/article/pii/S0377042719306740">Journal of Computational and Applied Mathematics</a>.</li>
-    </ul>
-  </div>
-</section>
-
-<section id="appendix" class="section">
-  <details><summary>Appendix: output from the demo program</summary><div><p class="muted">
-  <pre><code data-trim id="awesomecpp">
+    <details style="margin-top:18px"><summary>Console output (order of matrices generated in parallel may vary)</summary><pre>
+	<code data-trim id="awesomecpp">
 16
 P =
 {{1,    1,      1,      1,      1,      1,      1,      1,      1},
@@ -558,11 +444,503 @@ t value according to matrix : 3
 t value according to point set : 3
 t value according to scrambled point set : 3
 generalized l2 discrepancy before scrambling: 0.000704709
-generalized l2 discrepancy after scrambling: 0.000607458  
-  </code></pre>
-  </p></div></details>
+generalized l2 discrepancy after scrambling: 0.000607458	
+	</code></pre></details>
+  </div>
+</section>
+
+<section id="api">
+  <div class="wrapper">
+    <h2>API manual</h2>
+    <p>The entries below document the classes and routines exercised by <code>main.cpp</code>. The emphasis is on finite-field assumptions, computational cost, memory behavior, and safe usage in parallel code.</p>
+    <div class="api-list">
+      
+    <article class="api" id="finite-field-layer">
+      <div class="api-head"><div class="api-name">Finite field layer</div><div class="badges"><span class="badge">GF(p^r)</span><span class="badge">header-only templates</span></div></div>
+      <div class="proto"><pre><code>template&lt;int p, int r&gt; struct GF_ext { int v; };
+
+template&lt;int p, int r&gt;
+using GF = typename std::conditional&lt;r == 1, int, GF_ext&lt;p,r&gt;&gt;::type;
+
+template&lt;int p_, int r_&gt;
+struct Field {
+    enum { p = p_, r = r_ };
+    typedef GF&lt;p,r&gt; T;
+    static inline T zero();
+    static inline T one();
+    static inline T div(T a, T b);
+    static inline T inv(T a);
+};
+
+template&lt;int p,int r,typename T&gt; gf_reduce(T x);
+template&lt;int p,int r&gt; GF&lt;p,r&gt; gf_from_int(int x);
+template&lt;int p,int r&gt; int gf_to_raw_index(GF&lt;p,r&gt; x);</code></pre></div>
+      <p>Defines the scalar type used throughout the library. Prime fields use plain <code>int</code>; extension fields use a compact integer label into precomputed arithmetic tables.</p>
+      <div class="calls"><code>GF2</code><code>GF3</code><code>GF4</code><code>GF5</code><code>GF8</code><code>GF16</code><code>Field&lt;p,r&gt;::T</code></div>
+      <div class="meta">
+        <div><b>Parameters</b><span>p,r: field characteristic and extension degree<br>T: scalar type used by matrices and polynomials<br>gf_from_int: injects an integer into the prime subfield<br>gf_to_raw_index: converts a field element to a digit label</span></div>
+        <div><b>Assumptions</b><span>Only prime-power cardinalities supported by the hardcoded tables are valid; non-prime-power bases such as 6 or 10 are deliberately absent.</span></div>
+        <div><b>Time</b><span>O(1) per operation.</span></div>
+        <div><b>Memory</b><span>O(1), plus global lookup tables up to MAX_GF.</span></div>
+        <div><b>Thread safety</b><span>Read-only field arithmetic is thread-safe after static/global initialization; writes to user matrices are not synchronized.</span></div>
+      </div>
+      
+      
+    </article>
+    
+    <article class="api" id="matrixview-and-matrix">
+      <div class="api-head"><div class="api-name">MatrixView and Matrix</div><div class="badges"><span class="badge">linear algebra</span><span class="badge">row-major</span></div></div>
+      <div class="proto"><pre><code>template&lt;class F&gt;
+struct MatrixView : MatrixBase&lt;MatrixView&lt;F&gt;, F&gt; {
+    typename F::T* values;
+    int m, n;
+    MatrixView();
+    MatrixView(typename F::T* values, int m, int n);
+};
+
+template&lt;class F&gt;
+struct Matrix : MatrixBase&lt;Matrix&lt;F&gt;, F&gt; {
+    typename F::T* values;
+    int m, n;
+    Matrix();
+    Matrix(int m, int n);
+    Matrix(const MatrixView&lt;F&gt;&amp; view);       // explicit deep copy
+    Matrix(int m, int n, std::initializer_list&lt;int&gt; init);
+    Matrix(const Matrix&amp;) = delete;
+    Matrix&amp; operator=(const Matrix&amp;) = delete;
+    Matrix(Matrix&amp;&amp;) noexcept;
+    Matrix&amp; operator=(Matrix&amp;&amp;) noexcept;
+    MatrixView&lt;F&gt; view();
+};</code></pre></div>
+      <p><code>MatrixView</code> is a non-owning view over row-major storage. <code>Matrix</code> owns its storage and intentionally disables accidental copy construction/assignment; constructing from a view performs an explicit deep copy.</p>
+      <div class="calls"><code>Matrix&lt;F&gt;</code><code>MatrixView&lt;F&gt;</code><code>view()</code><code>set_id()</code><code>set_zero()</code></div>
+      <div class="meta">
+        <div><b>Parameters</b><span>values: contiguous row-major data<br>m,n: rows and columns<br>initializer_list: interpreted through gf_from_int</span></div>
+        <div><b>Assumptions</b><span>Views must not outlive the pointed storage. Operations assume compatible field type F.</span></div>
+        <div><b>Time</b><span>Construction O(mn); element access O(1); deep copy O(mn).</span></div>
+        <div><b>Memory</b><span>Matrix owns O(mn) field elements; MatrixView owns O(1).</span></div>
+        <div><b>Thread safety</b><span>Independent matrices/views are safe. Concurrent writes to the same storage are not safe.</span></div>
+      </div>
+      
+      
+    </article>
+    
+    <article class="api" id="matrixbase-linear-algebra">
+      <div class="api-head"><div class="api-name">MatrixBase linear algebra</div><div class="badges"><span class="badge">rank</span><span class="badge">inverse</span><span class="badge">determinant tests</span></div></div>
+      <div class="proto"><pre><code>template&lt;class Derived, class F&gt;
+struct MatrixBase {
+    int rows() const;
+    int cols() const;
+    typename F::T* data();
+
+    int rank(MatrixView&lt;F&gt; tmpPivoted) const;
+    int rank() const;
+
+    int checkDet(MatrixView&lt;F&gt; tmpMatT,
+                 MatrixView&lt;F&gt; tmpInv,
+                 MatrixView&lt;F&gt; tmpiAc,
+                 MatrixView&lt;F&gt; tmpriA) const;
+    int checkDet() const;
+
+    Matrix&lt;F&gt; get_inverse(MatrixView&lt;F&gt; tmpMatT,
+                          MatrixView&lt;F&gt; tmpiAc,
+                          MatrixView&lt;F&gt; tmpriA) const;
+    Matrix&lt;F&gt; get_inverse() const;
+
+    void reduce();
+    bool save_svg(const char* filename,
+                  int cell_size = 24,
+                  int margin = 6,
+                  bool draw_grid = true) const;
+};</code></pre></div>
+      <p>Common CRTP interface for owning matrices and views. It provides rank computations, a fast leading-minor determinant test used for digital-net admissibility checks, inversion, modular reduction, and SVG export.</p>
+      <div class="calls"><code>combination.rank()</code><code>S1.save_svg(&quot;matrix1.svg&quot;)</code><code>S2 * S1.get_inverse()</code></div>
+      <div class="meta">
+        <div><b>Parameters</b><span>tmp*: scratch matrices/vectors avoiding repeated allocations<br>checkDet: returns -1 if all tested leading minors pass, otherwise returns the failing index<br>save_svg: writes a colored matrix image</span></div>
+        <div><b>Assumptions</b><span><code>rank</code> performs robust row/column pivoting. <code>checkDet</code> assumes the no-pivot pattern typical of Sobol matrices and row-stack combinations; it is not a generic determinant routine.</span></div>
+        <div><b>Time</b><span>rank O(mn·min(m,n)) by Gaussian elimination. inverse/checkDet roughly O(m³) for large matrices, with optimized small-size and incremental determinant-lemma paths.</span></div>
+        <div><b>Memory</b><span>Scratch overloads use caller-provided O(m²) buffers; allocation overloads allocate internally.</span></div>
+        <div><b>Thread safety</b><span>Const operations are safe if matrix data are not concurrently mutated. Scratch buffers must be private to each thread.</span></div>
+      </div>
+      <p class="note warn">Caveat: <code>checkDet</code> is designed for fast admissibility/progressive checks, not for arbitrary matrices requiring pivoting.</p>
+      
+    </article>
+    
+    <article class="api" id="pascal-matrices">
+      <div class="api-head"><div class="api-name">Pascal matrices</div><div class="badges"><span class="badge">Sobol transforms</span><span class="badge">static cache</span></div></div>
+      <div class="proto"><pre><code>template&lt;class F, int N, int Power = 1&gt;
+struct PascalPowIntMatrix {
+    static MatrixView&lt;F&gt; value();
+};
+
+template&lt;class F, int N, int Power = 1&gt;
+struct PascalTranslateFieldMatrix {
+    static MatrixView&lt;F&gt; value();
+};
+
+template&lt;class F&gt;
+void fill_pascal_int(MatrixView&lt;F&gt;&amp; out, int power_int);
+
+template&lt;class F&gt;
+void fill_pascal_field(MatrixView&lt;F&gt;&amp; out, typename F::T power_field);</code></pre></div>
+      <p>Builds Pascal-type upper-triangular matrices over a finite field. The integer-power variant corresponds to powers of the Pascal matrix; the field-translation variant corresponds to translating polynomials by a field element, as used in Sobol-style characteristic matrices.</p>
+      <div class="calls"><code>PascalPowIntMatrix&lt;F,9&gt;::value()</code><code>PascalTranslateFieldMatrix&lt;F,9,3&gt;::value()</code></div>
+      <div class="meta">
+        <div><b>Parameters</b><span>F: finite field<br>N/out: square matrix size<br>Power/power_*: integer or field translation/power parameter</span></div>
+        <div><b>Assumptions</b><span>Output must be square. Static-cache wrappers return a view into a template-specific static buffer.</span></div>
+        <div><b>Time</b><span>O(N²) to initialize; O(1) for later cached access.</span></div>
+        <div><b>Memory</b><span>O(N²) static storage per template instantiation for cached wrappers; caller-provided output for fill functions.</span></div>
+        <div><b>Thread safety</b><span>Cached <code>value()</code> uses a static buffer and flag; avoid concurrent first calls to the same instantiation. After initialization, read-only use is safe.</span></div>
+      </div>
+      
+      
+    </article>
+    
+    <article class="api" id="tensor-product">
+      <div class="api-head"><div class="api-name">Tensor product</div><div class="badges"><span class="badge">Kronecker product</span><span class="badge">truncated output</span></div></div>
+      <div class="proto"><pre><code>template&lt;class F&gt;
+void tensor_product(const MatrixView&lt;F&gt; A,
+                    const MatrixView&lt;F&gt; B,
+                    MatrixView&lt;F&gt; result,
+                    int truncate_row = -1,
+                    int truncate_col = -1);
+
+template&lt;class F&gt;
+void tensor_product_full(const MatrixView&lt;F&gt;&amp; A,
+                         const MatrixView&lt;F&gt;&amp; B,
+                         MatrixView&lt;F&gt; result);
+
+template&lt;class F&gt;
+void tensor_product_truncated(const MatrixView&lt;F&gt;&amp; A,
+                              const MatrixView&lt;F&gt;&amp; B,
+                              MatrixView&lt;F&gt; result,
+                              int truncate_row,
+                              int truncate_col);</code></pre></div>
+      <p>Computes the Kronecker/tensor product of two finite-field matrices, optionally only the top-left truncated block.</p>
+      <div class="calls"><code>tensor_product(P, triu.view(), full_product.view())</code><code>tensor_product(P, triu.view(), truncated_product.view(), 15, 15)</code></div>
+      <div class="meta">
+        <div><b>Parameters</b><span>A,B: input matrices<br>result: output storage<br>truncate_row/col: top-left dimensions, or full product if negative</span></div>
+        <div><b>Assumptions</b><span>Full result dimensions are A.rows·B.rows by A.cols·B.cols. Truncated output must be large enough for the requested block.</span></div>
+        <div><b>Time</b><span>O(truncate_row·truncate_col), O((Am·Bm)(An·Bn)) for full output.</span></div>
+        <div><b>Memory</b><span>No additional asymptotic memory beyond the output.</span></div>
+        <div><b>Thread safety</b><span>Thread-safe if inputs are read-only and each thread writes to its own result.</span></div>
+      </div>
+      
+      
+    </article>
+    
+    <article class="api" id="sobolmatrix">
+      <div class="api-head"><div class="api-name">SobolMatrix</div><div class="badges"><span class="badge">direction matrices</span><span class="badge">hardcoded tables</span></div></div>
+      <div class="proto"><pre><code>template&lt;class F&gt;
+struct SobolMatrix : public Matrix&lt;F&gt; {
+    SobolMatrix(int matrix_size,
+                MatrixView&lt;F&gt; poly,
+                MatrixView&lt;F&gt; init);
+
+    SobolMatrix(SobolPredefinedTable table,
+                int dim_number,
+                int matrix_size);
+};
+
+enum SobolPredefinedTable {
+    SOBOL_JOE_KUO_GF2,
+    SOBOL_ONETWO_SEQ_GF2,
+    SOBOL_FAURE_LEMIEUX_IS_DEC_GF2,
+    SOBOL_QUADQUAD_GF3
+};</code></pre></div>
+      <p>Constructs finite-field generator matrices for Sobol-type digital sequences. The low-level constructor expands a monic polynomial and initial columns. The table constructor selects one of the built-in direction-number families.</p>
+      <div class="calls"><code>SobolMatrix&lt;F&gt; S(20, poly.view(), init.view())</code><code>SobolMatrix&lt;GF2&gt; sobol(SOBOL_JOE_KUO_GF2, i, 25)</code></div>
+      <div class="meta">
+        <div><b>Parameters</b><span>matrix_size: number of rows/columns to generate<br>poly: lower coefficients of a monic recurrence polynomial<br>init: initial direction columns<br>table, dim_number: built-in family and dimension index</span></div>
+        <div><b>Assumptions</b><span>Polynomial and initial matrix conventions must match the selected field. Table constructors must be used with the correct base, e.g. GF(2) for Joe-Kuo/OneTwo/Faure-Lemieux and GF(3) for QuadQuad.</span></div>
+        <div><b>Time</b><span>O(matrix_size²·degree) for recurrence expansion.</span></div>
+        <div><b>Memory</b><span>O(matrix_size²) output storage.</span></div>
+        <div><b>Thread safety</b><span>Construction writes only to the new matrix; table data are read-only.</span></div>
+      </div>
+      <p class="note ">The method names <code>OneTwo</code> and <code>QuadQuad</code> are library/table names; the bibliography uses the actual paper titles and authors.</p>
+      <p class="muted"><b>Related references:</b> <a href="#ref-sobol1967">Sobol (1967)</a>, <a href="#ref-joekuo2003">Joe &amp; Kuo (2003)</a>, <a href="#ref-joekuo2008">Joe &amp; Kuo (2008)</a>, <a href="#ref-faurelemieux2019">Faure &amp; Lemieux (2019)</a>, <a href="#ref-onetwo2025">Bonneel et al. (2025)</a>, <a href="#ref-quadquad2024">Ostromoukhov et al. (2024)</a></p>
+    </article>
+    
+    <article class="api" id="combine-matrices-and-t-0-checks">
+      <div class="api-head"><div class="api-name">combine_matrices and t=0 checks</div><div class="badges"><span class="badge">digital nets</span><span class="badge">admissibility</span></div></div>
+      <div class="proto"><pre><code>template&lt;class F&gt;
+void combine_matrices(const MatrixView&lt;F&gt;* matrices,
+                      const int* row_choices,
+                      int num_matrices,
+                      int max_columns,
+                      MatrixView&lt;F&gt; result);
+
+template&lt;class F&gt;
+bool is_t0_progressive(const MatrixView&lt;F&gt;* matrices,
+                       int num_matrices);</code></pre></div>
+      <p><code>combine_matrices</code> stacks the first <code>row_choices[i]</code> rows of each generator matrix into one square test matrix. <code>is_t0_progressive</code> tests the progressive t=0 property by checking the relevant row combinations.</p>
+      <div class="calls"><code>combine_matrices(...)</code><code>is_t0_progressive(&amp;sequence[0], 3)</code></div>
+      <div class="meta">
+        <div><b>Parameters</b><span>matrices: array of generator matrices<br>row_choices: number of rows taken from each matrix<br>num_matrices: dimension s<br>max_columns/result: output width and storage</span></div>
+        <div><b>Assumptions</b><span>Matrices must have enough rows/columns. For t=0 progressive tests, row choices are weak compositions of the target precision.</span></div>
+        <div><b>Time</b><span>combine_matrices O(m²) copying for an m×m result. is_t0_progressive enumerates row compositions and uses checkDet/rank-style tests; exponential/combinatorial in dimension and precision.</span></div>
+        <div><b>Memory</b><span>combine_matrices uses only output storage. t=0 checks use O(m²) scratch per test path.</span></div>
+        <div><b>Thread safety</b><span>Safe if each thread uses private output/scratch. MatrixRange examples in main show how to decode per-thread matrices safely.</span></div>
+      </div>
+      
+      
+    </article>
+    
+    <article class="api" id="t-values">
+      <div class="api-head"><div class="api-name">t_values</div><div class="badges"><span class="badge">Marion–Godin–L&#x27;Ecuyer</span><span class="badge">primary API</span></div></div>
+      <div class="proto"><pre><code>template&lt;class F&gt;
+std::vector&lt;int&gt; t_values(const MatrixView&lt;F&gt;* matrices,
+                          int num_matrices);
+
+template&lt;class F&gt;
+std::vector&lt;int&gt; t_values_naive(const MatrixView&lt;F&gt;* matrices,
+                                int num_matrices); // debug/reference</code></pre></div>
+      <p>Computes the sequence of t-values for a set of generator matrices. This is the primary implementation in the current library; the older exhaustive implementation is exposed as <code>t_values_naive</code> mainly to validate/debug results.</p>
+      <div class="calls"><code>t_values(&amp;sequence[0], sequence.size())</code><code>t_values_naive(&amp;sequence[0], sequence.size())</code></div>
+      <div class="meta">
+        <div><b>Parameters</b><span>matrices: array of generator matrices<br>num_matrices: sequence dimension s<br>return: t[m-1] is the t-value at precision m</span></div>
+        <div><b>Assumptions</b><span>All matrices should be square and large enough for the maximum precision of interest. The field type F defines the base.</span></div>
+        <div><b>Time</b><span>The optimized implementation follows the rank-profile strategy of Marion, Godin and L'Ecuyer; it avoids recomputing every determinant from scratch. Naive enumeration is much slower and combinatorial in s,m.</span></div>
+        <div><b>Memory</b><span>Typically O(m²) or O(m³)-scale working data plus composition/rank-profile state; exact constants depend on base and dimension.</span></div>
+        <div><b>Thread safety</b><span>Use independent scratch/state per call for parallel usage. Read-only matrix inputs can be shared.</span></div>
+      </div>
+      <p class="note ">This section intentionally documents <code>t_values</code>, not <code>t_values_fast</code>: the latter name is not part of the current public library.</p>
+      <p class="muted"><b>Related references:</b> <a href="#ref-marion2020">Marion, Godin &amp; L’Ecuyer (2020)</a></p>
+    </article>
+    
+    <article class="api" id="point-generation">
+      <div class="api-head"><div class="api-name">Point generation</div><div class="badges"><span class="badge">digital sequence</span><span class="badge">coordinates</span></div></div>
+      <div class="proto"><pre><code>template&lt;class F&gt;
+std::vector&lt;double&gt; get_points(const MatrixView&lt;F&gt;* matrices,
+                               int dim,
+                               long long npts);
+
+template&lt;class F&gt;
+void get_points(const MatrixView&lt;F&gt;* matrices,
+                int dim,
+                long long npts,
+                double* points);
+
+template&lt;class F&gt;
+void draw_2D_points(MatrixView&lt;F&gt; M1,
+                    MatrixView&lt;F&gt; M2,
+                    int nb_points,
+                    const std::string&amp; svg_filename);
+
+template&lt;class F&gt;
+void MatrixBase&lt;...,F&gt;::get_point_coordinates(long long nb_points,
+                                              double* coords,
+                                              int stride = 1) const;</code></pre></div>
+      <p>Converts generator matrices into real coordinates in [0,1). Integer point indices are decomposed into base-q digits, multiplied by each generator matrix over GF(q), then converted back to radix-q fractions.</p>
+      <div class="calls"><code>get_points&lt;F&gt;(&amp;sequence[0], dim, n_pts)</code><code>draw_2D_points(S1.view(), S2.view(), ..., &quot;points.svg&quot;)</code></div>
+      <div class="meta">
+        <div><b>Parameters</b><span>matrices: generator matrices for each coordinate<br>dim: number of coordinates<br>npts: number of points<br>points: row-major npts×dim buffer</span></div>
+        <div><b>Assumptions</b><span>Generator matrices must have enough columns/digits for the largest requested index. Field labels define the digit order in extension fields.</span></div>
+        <div><b>Time</b><span>Generic implementation is O(npts·dim·m²) if using generic matrix-vector products of size m; optimized paths may reduce constants.</span></div>
+        <div><b>Memory</b><span>O(npts·dim) for returned coordinates plus O(m) temporary digit vectors per coordinate generation path.</span></div>
+        <div><b>Thread safety</b><span>Point generation is read-only on matrices; output buffers must be disjoint per thread.</span></div>
+      </div>
+      
+      
+    </article>
+    
+    <article class="api" id="owen-scrambling-and-digit-padding">
+      <div class="api-head"><div class="api-name">Owen scrambling and digit padding</div><div class="badges"><span class="badge">randomization</span><span class="badge">QMC</span></div></div>
+      <div class="proto"><pre><code>struct OwenTreeND;
+
+OwenTreeND make_random_owen_tree_nd(int dim,
+                                    int base,
+                                    int depth,
+                                    uint64_t seed = 0x123456789ABCDEF0ULL);
+
+void apply_owen_permutation_real(const double* points_in,
+                                 double* points_out,
+                                 int npts,
+                                 int dim,
+                                 int m,
+                                 const OwenTreeND&amp; tree);
+
+void padd_least_significant_digits(double* pts,
+                                   long long n_pts,
+                                   int dim,
+                                   int base,
+                                   int m,
+                                   long long seed);</code></pre></div>
+      <p>Applies randomized digit permutations to point sets in base q. The library uses this to evaluate discrepancy curves under independent Owen-style randomizations and to randomize unused least-significant digits.</p>
+      <div class="calls"><code>make_random_owen_tree_nd(dim, base, m+3, 12345)</code><code>apply_owen_permutation_real(...)</code><code>padd_least_significant_digits(...)</code></div>
+      <div class="meta">
+        <div><b>Parameters</b><span>dim/base/depth: tree structure<br>seed: deterministic random seed<br>m: number of base-q digits<br>points_in/out: row-major arrays</span></div>
+        <div><b>Assumptions</b><span>Input coordinates are assumed in [0,1). Base and depth should match the digital sequence precision used to generate the points.</span></div>
+        <div><b>Time</b><span>O(npts·dim·m) for digit-wise scrambling.</span></div>
+        <div><b>Memory</b><span>O(size of permutation tree), roughly proportional to visited nodes up to dim/base/depth, plus output array.</span></div>
+        <div><b>Thread safety</b><span>Tree construction uses a local RNG. Applying a const tree is safe if output buffers are private.</span></div>
+      </div>
+      
+      
+    </article>
+    
+    <article class="api" id="discrepancy-evaluation">
+      <div class="api-head"><div class="api-name">Discrepancy evaluation</div><div class="badges"><span class="badge">star discrepancy</span><span class="badge">generalized L2</span></div></div>
+      <div class="proto"><pre><code>double generalized_l2_discrepancy(const double* points,
+                                  int npts,
+                                  int dim,
+                                  int block_size = 128);
+
+double star_discrepancy(const double* points,
+                        int npts,
+                        int dim);
+
+int t_value_pointset(const double* points,
+                     int npts,
+                     int dim,
+                     int base,
+                     bool dbg = false);</code></pre></div>
+      <p>Evaluates point-set quality directly in real coordinates. Generalized L2 discrepancy uses an exact O(N²d) formula with blocking. Star discrepancy is exact and uses branch-and-bound/bitset machinery for small-to-moderate cases. <code>t_value_pointset</code> verifies t-values from generated points.</p>
+      <div class="calls"><code>generalized_l2_discrepancy(&amp;pts[0], n_pts, dim)</code><code>star_discrepancy(&amp;scrambled[0], n_pts, dim)</code><code>t_value_pointset(&amp;pts[0], n_pts, dim, base)</code></div>
+      <div class="meta">
+        <div><b>Parameters</b><span>points: row-major N×dim coordinates<br>block_size: cache/blocking parameter for L2<br>base: digital-net base for pointset t-value verification</span></div>
+        <div><b>Assumptions</b><span>Coordinates should lie in [0,1); the implementation sanitizes boundary cases for exact star-discrepancy comparisons.</span></div>
+        <div><b>Time</b><span>generalized L2: O(N²d). star: worst-case exponential/combinatorial in dim and N, branch-and-bound prunes heavily in practice. t_value_pointset depends on base-adic occupancy tests.</span></div>
+        <div><b>Memory</b><span>generalized L2 uses O(Nd) plus block temporaries. star discrepancy uses coordinate lists and bit masks, roughly O(dim·N²/word_size) masks in the generic exact solver.</span></div>
+        <div><b>Thread safety</b><span>The routines are pure over input arrays. Each call owns its temporaries, so independent calls are thread-safe.</span></div>
+      </div>
+      
+      
+    </article>
+    
+    <article class="api" id="matrixrange">
+      <div class="api-head"><div class="api-name">MatrixRange</div><div class="badges"><span class="badge">enumeration</span><span class="badge">randomized DFS</span></div></div>
+      <div class="proto"><pre><code>enum MatrixRangeTraversal {
+    MatrixRangeSequential,
+    MatrixRangeGlobalRandomized,
+    MatrixRangeDFSValuePermuted
+};
+
+template&lt;class F&gt;
+struct MatrixRange {
+    MatrixRange(MatrixView&lt;F&gt; min_matrix,
+                MatrixView&lt;F&gt; max_matrix,
+                MatrixRangeTraversal traversal,
+                uint64_t seed = 0);
+
+    uint64_t size() const;
+    int rows() const;
+    int cols() const;
+    iterator begin();
+    iterator end();
+
+    void decode_step(uint64_t step,
+                     MatrixView&lt;F&gt; out) const;
+};</code></pre></div>
+      <p>Enumerates all finite-field matrices whose entries lie between two bounds. The demo uses it to list upper-triangular matrices, then decodes steps independently in OpenMP workers.</p>
+      <div class="calls"><code>MatrixRange&lt;F&gt; range(..., MatrixRangeDFSValuePermuted, 12345)</code><code>range.decode_step(s, local.view())</code></div>
+      <div class="meta">
+        <div><b>Parameters</b><span>min/max_matrix: lower and upper entry-wise bounds<br>traversal: deterministic/randomized order<br>seed: permutation seed<br>decode_step: random-access decoding into caller-owned storage</span></div>
+        <div><b>Assumptions</b><span>Bounds must have the same shape and field type. Fixed entries are represented by equal min/max values.</span></div>
+        <div><b>Time</b><span>Iteration size is the product of per-entry cardinalities. decode_step is O(mn) plus traversal/permutation overhead.</span></div>
+        <div><b>Memory</b><span>O(mn) per iterator/local matrix. Range object stores bounds and traversal data.</span></div>
+        <div><b>Thread safety</b><span>Preferred parallel usage is random-access <code>decode_step</code> into a thread-local Matrix, as in main.cpp.</span></div>
+      </div>
+      
+      
+    </article>
+    
+    <article class="api" id="svg-plotting">
+      <div class="api-head"><div class="api-name">SVG plotting</div><div class="badges"><span class="badge">publication figures</span><span class="badge">no external dependency</span></div></div>
+      <div class="proto"><pre><code>struct DiscrepancyCurve {
+    std::vector&lt;int&gt; n_points;
+    std::vector&lt;double&gt; values;
+    std::string label;
+    // styling fields: color, stroke_width, opacity, dashed, ...
+};
+
+struct ReferenceCurveSpec {
+    std::string label;
+    double exponent;
+    double scale;
+    // styling fields
+};
+
+struct DiscrepancyPlotOptions {
+    std::string title, x_label, y_label;
+    int base;
+    PlotYAxisScale y_scale;
+    double x_tick_octave_step;
+    // layout and style fields
+};
+
+bool plot_discrepancy_curves_svg(
+    const std::vector&lt;DiscrepancyCurve&gt;&amp; curves,
+    const std::vector&lt;ReferenceCurveSpec&gt;&amp; refs,
+    const DiscrepancyPlotOptions&amp; opt,
+    const char* filename);</code></pre></div>
+      <p>Produces a standalone SVG chart for discrepancy curves, including optional asymptotic reference slopes such as N^{-1/2} and N^{-1}.</p>
+      <div class="calls"><code>plot_discrepancy_curves_svg(curves, refs, opt, &quot;star_vs_l2_discrepancy.svg&quot;)</code></div>
+      <div class="meta">
+        <div><b>Parameters</b><span>curves: measured values<br>refs: analytic reference slopes<br>opt: axis/layout settings<br>filename: SVG output path</span></div>
+        <div><b>Assumptions</b><span>Curve vectors must have matching lengths. Positive values are required for log-scale y axes.</span></div>
+        <div><b>Time</b><span>O(total plotted samples + ticks + labels).</span></div>
+        <div><b>Memory</b><span>O(total plotted samples).</span></div>
+        <div><b>Thread safety</b><span>Function-local output only; separate filenames are thread-safe.</span></div>
+      </div>
+      
+      
+    </article>
+    
+    </div>
+  </div>
+</section>
+
+<section id="workflow">
+  <div class="wrapper">
+    <h2>Typical workflows</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3>Test a candidate digital sequence</h3>
+        <div class="code"><pre><code>std::vector&lt;MatrixView&lt;F&gt;&gt; seq(dim);
+// fill seq with generator matrices
+
+bool progressive = is_t0_progressive(&seq[0], dim);
+std::vector&lt;int&gt; t = t_values(&seq[0], dim);</code></pre></div>
+        <p>Use this for matrix-level quality checks. <code>is_t0_progressive</code> is stricter/specialized for t=0; <code>t_values</code> returns the full precision curve.</p>
+      </div>
+      <div class="card">
+        <h3>Evaluate points after randomization</h3>
+        <div class="code"><pre><code>std::vector&lt;double&gt; pts = get_points&lt;F&gt;(&seq[0], dim, npts);
+
+OwenTreeND tree = make_random_owen_tree_nd(dim, base, m, seed);
+std::vector&lt;double&gt; scrambled(npts * dim);
+apply_owen_permutation_real(&pts[0], &scrambled[0],
+                            npts, dim, m, tree);
+
+double gl2 = generalized_l2_discrepancy(&scrambled[0], npts, dim);
+double star = star_discrepancy(&scrambled[0], npts, dim);</code></pre></div>
+        <p>This is the workflow used to generate the discrepancy plot in the demo.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="references">
+  <div class="wrapper">
+    <h2>References</h2>    
+    
+<div class="refs">
+  <div class="ref" id="ref-sobol1967"><b>I. M. Sobol’ (1967). “On the distribution of points in a cube and the approximate evaluation of integrals.”</b><span>USSR Computational Mathematics and Mathematical Physics, 7(4), 86–112. DOI: 10.1016/0041-5553(67)90144-9. Original Sobol sequence paper.</span></div>
+  <div class="ref" id="ref-joekuo2003"><b>S. Joe and F. Y. Kuo (2003). “Remark on Algorithm 659: Implementing Sobol’s quasirandom sequence generator.”</b><span>ACM Transactions on Mathematical Software. DOI: 10.1145/641876.641879. Direction numbers and implementation details for Sobol generators.</span></div>
+  <div class="ref" id="ref-joekuo2008"><b>S. Joe and F. Y. Kuo (2008). “Constructing Sobol sequences with better two-dimensional projections.”</b><span>SIAM Journal on Scientific Computing, 30(5), 2635–2654. DOI: 10.1137/070709359. Direction numbers optimized for 2D projections; see also F. Kuo’s UNSW Sobol direction-number page.</span></div>
+  <div class="ref" id="ref-faurelemieux2019"><b>H. Faure and C. Lemieux (2019). “Implementation of irreducible Sobol sequences in prime power bases.”</b><span>Mathematics and Computers in Simulation, 161, 13–22. DOI: 10.1016/j.matcom.2018.08.015. The library uses the IS-dec table among the hardcoded Sobol-style constructors.</span></div>
+  <div class="ref" id="ref-onetwo2025"><b>N. Bonneel, D. Coeurjolly, J.-C. Iehl and V. Ostromoukhov (2025). “Sobol’ Sequences with Guaranteed-Quality 2D Projections.”</b><span>ACM Transactions on Graphics, SIGGRAPH 2025. Library method name: <code>OneTwo</code>. The construction targets guaranteed-quality 2D projections in base 2.</span></div>
+  <div class="ref" id="ref-quadquad2024"><b>V. Ostromoukhov, N. Bonneel, D. Coeurjolly and J.-C. Iehl (2024). “Quad-Optimized Low-Discrepancy Sequences.”</b><span>ACM SIGGRAPH Conference Papers 2024. DOI: 10.1145/3641519.3657431. Library method name: <code>QuadQuad</code>; base-3 Sobol-style quadruplet construction with optimized 2D/4D projections.</span></div>
+  <div class="ref" id="ref-marion2020"><b>P. Marion, M. Godin and P. L’Ecuyer (2020). “An algorithm to compute the t-value of a digital net and of its projections.”</b><span>Journal of Computational and Applied Mathematics, 371, 112669. DOI: 10.1016/j.cam.2019.112669. Basis for the library’s optimized <code>t_values</code> routine.</span></div>
+</div>
+
+  </div>
 </section>
 </main>
-<footer class="footer"><div class="wrap small">Generated documentation for <strong>tms_lib</strong>. Complexity statements are asymptotic and inferred from the current implementation structure, not benchmark measurements.</div></footer>
+
+<footer>
+  <div class="wrapper">Generated documentation page for <code>tms_lib</code>.</div>
+</footer>
 </body>
 </html>
