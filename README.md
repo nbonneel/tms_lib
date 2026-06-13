@@ -69,15 +69,18 @@ The demo program produces SVG figures such as the following.
 int main() {
 
     const int matrix_size = 32;
-    const int dim = 10;
+    const int dim_1 = 10;
+	const int dim_2 = 15;
 
-    SobolMatrix<GF2> S(SOBOL_ONETWO_SEQ_GF2, dim, matrix_size);
+    SobolMatrix<GF2> S_1(SOBOL_ONETWO_SEQ_GF2, dim_1, matrix_size);
+	SobolMatrix<GF2> S_2(SOBOL_ONETWO_SEQ_GF2, dim_2, matrix_size);
 
     std::vector<MatrixView<GF2> > matrices;
-    matrices.push_back(S.view());
+    matrices.push_back(S_1.view());
+	matrices.push_back(S_2.view());
 
-    std::vector<double> points(1024);
-    get_points<GF2>(&matrices[0], 1, 1024, points.data());
+    std::vector<double> points(2*1024);  // 1024 points in two dimensions
+    get_points<GF2>(&matrices[0], 2, 1024, points.data());
 
     return 0;
 }
