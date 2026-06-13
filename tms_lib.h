@@ -356,10 +356,9 @@ struct MatrixBase {
             return;
         }
 
-        // Number of input/output digits actually needed for nb_points points.
-        // If nb_points = Q^m, this returns m.
-        // If nb_points is not an exact power, this returns ceil(log_Q(nb_points)).
-        int n_digits = 0;
+        const int output_digits = cols(); // preserves old behavior
+
+        int input_digits = 0;
         {
             long long p = 1;
 
@@ -370,72 +369,47 @@ struct MatrixBase {
                 }
 
                 p *= Q;
-                ++n_digits;
+                ++input_digits;
             }
 
-            if (n_digits == 0) {
-                n_digits = 1;
+            if (input_digits == 0) {
+                input_digits = 1;
             }
         }
 
-        if (n_digits > cols() || n_digits > rows()) {
+        if (input_digits > cols() || output_digits > rows()) {
             std::cout << "request too many points : matrix is too small" << std::endl;
             return;
         }
 
-        Matrix<F> digits(n_digits, 1);
-        Matrix<F> result_mul(n_digits, 1);
-
-        // We use an integer numerator when possible:
-        //
-        // x = intval / Q^n_digits
-        //
-        // This avoids accumulating digit / pow(Q,j+1), and therefore avoids
-        // many boundary errors in subsequent floor(x * Q^k) tests.
-        uint64_t denom_u64 = 1;
-        bool denom_fits_u64 = true;
-
-        for (int j = 0; j < n_digits; ++j) {
-            if (denom_u64 > UINT64_MAX / uint64_t(Q)) {
-                denom_fits_u64 = false;
-                break;
-            }
-
-            denom_u64 *= uint64_t(Q);
-        }
-
-        const bool use_integer_path =
-            denom_fits_u64 &&
-            denom_u64 <= uint64_t(9007199254740992ULL); // 2^53, exact integer range of double
+        std::vector<T> digits(input_digits);
 
         for (long long i = 0; i < nb_points; ++i) {
-            decompose_integer_into_base<F>(i, digits.data(), n_digits);
+            decompose_integer_into_base<F>(
+                uint64_t(i),
+                digits.data(),
+                input_digits
+            );
 
-            result_mul = (*this) * digits;
+            double val = 0.0;
+            double factor = 1.0 / double(Q);
 
-            if (use_integer_path) {
-                uint64_t intval = 0;
+            for (int row = 0; row < output_digits; ++row) {
+                T acc = T{ 0 };
 
-                for (int j = 0; j < n_digits; ++j) {
-                    intval = intval * uint64_t(Q)
-                        + uint64_t(gf_to_raw_index<F>(result_mul[j]));
+                // Only input_digits columns are useful.
+                // The remaining index digits are zero.
+                for (int col = 0; col < input_digits; ++col) {
+                    acc = gf_reduce<F::p, F::r>(
+                        acc + (*this)(row, col) * digits[col]
+                    );
                 }
 
-                coords[i * stride] = double(intval) / double(denom_u64);
+                val += double(gf_to_raw_index<F>(acc)) * factor;
+                factor /= double(Q);
             }
-            else {
-                // Fallback for very large n_digits.
-                // Still uses only n_digits = ceil_log_Q(nb_points), not cols().
-                double val = 0.0;
-                double factor = 1.0 / double(Q);
 
-                for (int j = 0; j < n_digits; ++j) {
-                    val += double(gf_to_raw_index<F>(result_mul[j])) * factor;
-                    factor /= double(Q);
-                }
-
-                coords[i * stride] = val;
-            }
+            coords[i * stride] = val;
         }
     }
 
