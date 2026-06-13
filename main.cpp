@@ -366,12 +366,12 @@ void test_owen() {
 	auto time_point4 = std::chrono::high_resolution_clock::now();
 	double stardisc = star_discrepancy(&scrambled[0], std::min(n_pts,2500), dim, false);
 	auto time_point5 = std::chrono::high_resolution_clock::now();
-	std::cout << "star discrepancy in 3D ("<< std::min(n_pts, 2300)<<" points, CPU) : "<<stardisc << ", time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>((time_point5 - time_point4)).count() << " ms" << std::endl;
+	std::cout << "star discrepancy in 3D ("<< std::min(n_pts, 2500)<<" points, CPU) : "<<stardisc << ", time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>((time_point5 - time_point4)).count() << " ms" << std::endl;
 
 	auto time_point6 = std::chrono::high_resolution_clock::now();
-	stardisc = star_discrepancy(&scrambled[0], std::min(n_pts, 2300), dim, true);
+	stardisc = star_discrepancy(&scrambled[0], std::min(n_pts, 2500), dim, true);
 	auto time_point7 = std::chrono::high_resolution_clock::now();
-	std::cout << "star discrepancy in 3D (" << std::min(n_pts, 2300) << " points, GPU) : " << stardisc << ", time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>((time_point7 - time_point6)).count() << " ms" << std::endl;
+	std::cout << "star discrepancy in 3D (" << std::min(n_pts, 2500) << " points, GPU) : " << stardisc << ", time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>((time_point7 - time_point6)).count() << " ms" << std::endl;
 
 }
 

@@ -342,31 +342,100 @@ struct MatrixBase {
     int rank() const;
 
 
-    void get_point_coordinates(long long nb_points, double* coords, int stride = 1) const {
-
+    void get_point_coordinates(long long nb_points,
+        double* coords,
+        int stride = 1) const {
         typedef typename F::T T;
         enum { Q = GFCardinality<F::p, F::r>::value };
 
-        int n_digits = cols();
-        if (std::floor(log((double)nb_points) / log((double)Q))  > n_digits) {
+        assert(coords != 0);
+        assert(nb_points >= 0);
+        assert(stride >= 1);
+
+        if (nb_points == 0) {
+            return;
+        }
+
+        // Number of input/output digits actually needed for nb_points points.
+        // If nb_points = Q^m, this returns m.
+        // If nb_points is not an exact power, this returns ceil(log_Q(nb_points)).
+        int n_digits = 0;
+        {
+            long long p = 1;
+
+            while (p < nb_points) {
+                if (p > LLONG_MAX / Q) {
+                    std::cout << "too many points: digit count overflow" << std::endl;
+                    return;
+                }
+
+                p *= Q;
+                ++n_digits;
+            }
+
+            if (n_digits == 0) {
+                n_digits = 1;
+            }
+        }
+
+        if (n_digits > cols() || n_digits > rows()) {
             std::cout << "request too many points : matrix is too small" << std::endl;
+            return;
         }
 
         Matrix<F> digits(n_digits, 1);
         Matrix<F> result_mul(n_digits, 1);
 
-        for (long long i = 0; i < nb_points; i++) {
-            decompose_integer_into_base<F>(i, digits.data(), n_digits);
-            result_mul = (*this)* digits;
-            uint64_t intval = 0;
+        // We use an integer numerator when possible:
+        //
+        // x = intval / Q^n_digits
+        //
+        // This avoids accumulating digit / pow(Q,j+1), and therefore avoids
+        // many boundary errors in subsequent floor(x * Q^k) tests.
+        uint64_t denom_u64 = 1;
+        bool denom_fits_u64 = true;
 
-            for (int j = 0; j < n_digits; ++j) {
-                intval = intval * uint64_t(Q)
-                    + uint64_t(gf_to_raw_index<F>(result_mul[j]));
+        for (int j = 0; j < n_digits; ++j) {
+            if (denom_u64 > UINT64_MAX / uint64_t(Q)) {
+                denom_fits_u64 = false;
+                break;
             }
 
-            const double denom = double(ipow_u64_checked(Q, n_digits));
-            coords[i * stride] = double(intval) / denom;
+            denom_u64 *= uint64_t(Q);
+        }
+
+        const bool use_integer_path =
+            denom_fits_u64 &&
+            denom_u64 <= uint64_t(9007199254740992ULL); // 2^53, exact integer range of double
+
+        for (long long i = 0; i < nb_points; ++i) {
+            decompose_integer_into_base<F>(i, digits.data(), n_digits);
+
+            result_mul = (*this) * digits;
+
+            if (use_integer_path) {
+                uint64_t intval = 0;
+
+                for (int j = 0; j < n_digits; ++j) {
+                    intval = intval * uint64_t(Q)
+                        + uint64_t(gf_to_raw_index<F>(result_mul[j]));
+                }
+
+                coords[i * stride] = double(intval) / double(denom_u64);
+            }
+            else {
+                // Fallback for very large n_digits.
+                // Still uses only n_digits = ceil_log_Q(nb_points), not cols().
+                double val = 0.0;
+                double factor = 1.0 / double(Q);
+
+                for (int j = 0; j < n_digits; ++j) {
+                    val += double(gf_to_raw_index<F>(result_mul[j])) * factor;
+                    factor /= double(Q);
+                }
+
+                coords[i * stride] = val;
+            }
         }
     }
 
