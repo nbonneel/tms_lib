@@ -67,18 +67,17 @@ The demo program produces SVG figures such as the following.
 #include "tms_lib.h"
 
 int main() {
-    typedef Field<2, 1> F2;
 
     const int matrix_size = 32;
     const int dim = 10;
 
-    SobolMatrix<F2> S(SOBOL_ONETWO_SEQ_GF2, dim, matrix_size);
+    SobolMatrix<GF2> S(SOBOL_ONETWO_SEQ_GF2, dim, matrix_size);
 
-    std::vector<MatrixView<F2> > matrices;
+    std::vector<MatrixView<GF2> > matrices;
     matrices.push_back(S.view());
 
     std::vector<double> points(1024);
-    get_points<F2>(&matrices[0], 1, 1024, points.data());
+    get_points<GF2>(&matrices[0], 1, 1024, points.data());
 
     return 0;
 }
@@ -176,9 +175,9 @@ It includes descriptions of the main classes and routines, including parameters,
 `tms_lib` supports computations over `GF(p^r)` through lightweight field descriptors such as:
 
 ```cpp
-typedef Field<2, 1> F2; // GF(2)
-typedef Field<3, 1> F3; // GF(3)
-typedef Field<2, 3> F8; // GF(2^3)
+typedef Field<2, 1> GF2; // GF(2)
+typedef Field<3, 1> GF3; // GF(3)
+typedef Field<2, 3> GF8; // GF(2^3)
 ```
 
 Prime fields use plain integers, while extension fields use compact table-based arithmetic.
@@ -199,12 +198,11 @@ The matrix layer provides finite-field rank, determinant checks, inverse computa
 Generator matrices can be constructed from hardcoded tables:
 
 ```cpp
-SobolMatrix<F2> S0(SOBOL_JOE_KUO_GF2, 10, 32);
-SobolMatrix<F2> S1(SOBOL_ONETWO_SEQ_GF2, 10, 32);
-SobolMatrix<F2> S2(SOBOL_FAURE_LEMIEUX_IS_DEC_GF2, 10, 32);
+SobolMatrix<GF2> S0(SOBOL_JOE_KUO_GF2, 10, 32);
+SobolMatrix<GF2> S1(SOBOL_ONETWO_SEQ_GF2, 10, 32);
+SobolMatrix<GF2> S2(SOBOL_FAURE_LEMIEUX_IS_DEC_GF2, 10, 32);
 
-typedef Field<3, 1> F3;
-SobolMatrix<F3> S3(SOBOL_QUADQUAD_GF3, 10, 32);
+SobolMatrix<GF3> S3(SOBOL_QUADQUAD_GF3, 10, 32);
 ```
 
 ### t-values and discrepancy
