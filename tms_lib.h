@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <climits>
 
 #include "SobolHardcodedTables.h"
 
