@@ -340,9 +340,10 @@ void test_owen() {
 
 	std::vector<double> pts = get_points<F>(&sequence[0], dim, n_pts);
 
-	OwenTreeND tree = make_random_owen_tree_nd(dim, base, m+3, 12345);
+	OwenTreeND* tree = make_random_owen_tree_nd(dim, base, m+3, 12345);
 	std::vector<double> scrambled(n_pts * dim);
-	apply_owen_permutation_real(&pts[0], &scrambled[0], n_pts, dim, m+3, tree);
+	apply_owen_permutation_real(&pts[0], &scrambled[0], n_pts, dim, m+3, *tree);
+	delete tree;
 
 	int t_before = t_value_pointset(&pts[0], n_pts, dim, base);
 	int t_after = t_value_pointset(&scrambled[0], n_pts, dim, base);
@@ -411,8 +412,9 @@ void test_plot_discrepancy() {
 #pragma omp parallel for reduction(+:avg_gl2_disc)	reduction(+:avg_star_disc)	
 		for (int i = 0; i < nb_owen; i++) {
 			std::vector<double> scrambled(n_pts* dim);
-			OwenTreeND tree = make_random_owen_tree_nd(dim, base, std::ceil(m), 12345+i*123);			
-			apply_owen_permutation_real(&pts[0], &scrambled[0], n_pts, dim, std::ceil(m), tree);
+			OwenTreeND* tree = make_random_owen_tree_nd(dim, base, std::ceil(m), 12345+i*123);			
+			apply_owen_permutation_real(&pts[0], &scrambled[0], n_pts, dim, std::ceil(m), *tree);
+			delete tree;
 			padd_least_significant_digits(&scrambled[0], n_pts, dim, base, std::ceil(m), 123456+i*456);
 
 			// since we are computing discrepancies in parallel, let's do it on the CPU.
@@ -464,8 +466,6 @@ void test_plot_discrepancy() {
 
 	plot_discrepancy_curves_svg(curves, refs, opt, "star_vs_l2_discrepancy.svg");
 }
-
-
 
 
 

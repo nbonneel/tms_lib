@@ -26,6 +26,7 @@ struct DiscrepancyPlotOptions;
 struct ProjectionHighlight;
 
 double generalized_l2_discrepancy(const double* points, int npts, int dim, int block_size = 128, bool use_gpu = true);
+void generalized_l2_discrepancy_curve(const double* points, int max_npts, int dim, const long long* sample_counts, int n_samples, double* out_D, int stride_dim = 0);
 
 #ifdef TMS_USE_CUDA
 #ifdef __cplusplus
@@ -51,7 +52,7 @@ double star_discrepancy(const double* points, int npts, int dim, bool gpu = true
 void print_point_range(const double* points, int npts, int dim);
 int t_value_pointset(const double* points, int npts, int dim, int base, bool dbg = false);
 
-OwenTreeND make_random_owen_tree_nd(int dim, int base, int depth, uint64_t seed = 0x123456789ABCDEF0ULL);
+OwenTreeND* make_random_owen_tree_nd(int dim, int base, int depth, uint64_t seed = 0x123456789ABCDEF0ULL);
 void apply_owen_permutation_real(const double* points_in, double* points_out, int npts, int dim, int m,  const OwenTreeND& tree);
 extern uint64_t ipow_u64_checked(int base, int exp);
 bool plot_discrepancy_curves_svg(const std::vector<DiscrepancyCurve>& curves, const std::vector<ReferenceCurveSpec>& refs, const DiscrepancyPlotOptions& opt, const char* filename);
@@ -918,6 +919,21 @@ template<class AExpr, class BExpr, class F>
 Matrix<F> operator*(const MatrixBase<AExpr, F>& A,
     const MatrixBase<BExpr, F>& B) {
     return matmul(A, B);
+}
+
+template<class AExpr, class F>
+Matrix<F> operator*(const MatrixBase<AExpr, F>& A, const typename F::T& B) {
+    Matrix<F> result(A.rows(), A.cols());
+    for (int i = 0; i < A.rows() * A.cols(); i++) {
+        result.data()[i] = A.data()[i] * B;
+    }
+    result.reduce();
+    return result;
+}
+
+template<class BExpr, class F>
+Matrix<F> operator*(const typename F::T& A, const MatrixBase<BExpr, F>& B) {
+    return B * A;
 }
 
 template<class AExpr, class BExpr, class F>

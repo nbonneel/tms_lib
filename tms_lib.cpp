@@ -505,6 +505,156 @@ double generalized_l2_discrepancy(const double* points, int npts, int dim, int b
     return std::sqrt(  generalized_l2_discrepancy_squared_auto(points, npts, dim, block_size, use_gpu)  );
 }
 
+
+inline double gl2_pair_kernel_y_aos(const double* yi,
+    const double* yk,
+    int dim) {
+    // yi[d] = 2 - x_i[d]
+    // yk[d] = 2 - x_k[d]
+    //
+    // prod_d (2 - max(x_i[d], x_k[d]))
+    // = prod_d min(2 - x_i[d], 2 - x_k[d])
+    double prod = 1.0;
+
+    for (int d = 0; d < dim; ++d) {
+        const double a = yi[d];
+        const double b = yk[d];
+        prod *= a < b ? a : b;
+    }
+
+    return prod;
+}
+
+void generalized_l2_discrepancy_curve_squared_exact_runtime_aos(
+    const double* points,
+    int max_npts,
+    int dim,
+    const long long* sample_counts,
+    int n_samples,
+    double* out_d2,
+    int stride_dim = 0
+) {
+    assert(points != 0);
+    assert(max_npts > 0);
+    assert(dim > 0);
+    assert(sample_counts != 0);
+    assert(n_samples > 0);
+    assert(out_d2 != 0);
+
+    if (stride_dim == 0) {
+        stride_dim = dim;
+    }
+
+    assert(stride_dim >= dim);
+
+    for (int s = 0; s < n_samples; ++s) {
+        assert(sample_counts[s] > 0);
+        assert(sample_counts[s] <= max_npts);
+
+        if (s > 0) {
+            assert(sample_counts[s] >= sample_counts[s - 1]);
+        }
+    }
+
+    // Compact AoS layout:
+    // Y[i * dim + d] = 2 - points[i * stride_dim + d].
+    //
+    // This is the best layout for the scalar CPU kernel.
+    std::vector<double> Y(std::size_t(max_npts) * std::size_t(dim));
+
+#pragma omp parallel for schedule(static)
+    for (int i = 0; i < max_npts; ++i) {
+        const double* p =
+            points + std::size_t(i) * std::size_t(stride_dim);
+
+        double* y =
+            Y.data() + std::size_t(i) * std::size_t(dim);
+
+        for (int d = 0; d < dim; ++d) {
+            y[d] = 2.0 - p[d];
+        }
+    }
+
+    // incA[i] = a_i
+    // incB[i] = b_ii + 2 * sum_{k<i} b_ik
+    std::vector<double> incA(max_npts);
+    std::vector<double> incB(max_npts);
+
+#pragma omp parallel for schedule(guided, 8)
+    for (int i = 0; i < max_npts; ++i) {
+        const double* yi =
+            Y.data() + std::size_t(i) * std::size_t(dim);
+
+        double a_i = 1.0;
+        double b_ii = 1.0;
+
+        for (int d = 0; d < dim; ++d) {
+            const double y = yi[d];
+            const double x = 2.0 - y;
+
+            a_i *= 0.5 * (3.0 - x * x);
+            b_ii *= y;
+        }
+
+        double pair_sum = 0.0;
+
+        for (int k = 0; k < i; ++k) {
+            const double* yk =
+                Y.data() + std::size_t(k) * std::size_t(dim);
+
+            pair_sum += gl2_pair_kernel_y_aos(yi, yk, dim);
+        }
+
+        incA[i] = a_i;
+        incB[i] = b_ii + 2.0 * pair_sum;
+    }
+
+    double term0 = 1.0;
+
+    for (int d = 0; d < dim; ++d) {
+        term0 *= 4.0 / 3.0;
+    }
+
+    double A = 0.0;
+    double B = 0.0;
+
+    int sample_id = 0;
+
+    for (int i = 0; i < max_npts && sample_id < n_samples; ++i) {
+        A += incA[i];
+        B += incB[i];
+
+        const int n = i + 1;
+
+        while (sample_id < n_samples &&
+            sample_counts[sample_id] == n) {
+            const double invN = 1.0 / double(n);
+
+            const double d2 =
+                term0
+                - 2.0 * invN * A
+                + invN * invN * B;
+
+            out_d2[sample_id] = clamp_discrepancy_square(d2);
+            ++sample_id;
+        }
+    }
+
+    assert(sample_id == n_samples);
+}
+
+
+void generalized_l2_discrepancy_curve(const double* points, int max_npts, int dim, const long long* sample_counts, int n_samples,
+    double* out_D, int stride_dim
+) {
+    generalized_l2_discrepancy_curve_squared_exact_runtime_aos(points, max_npts, dim, sample_counts, n_samples, out_D, stride_dim);
+
+    for (int s = 0; s < n_samples; ++s) {
+        out_D[s] = std::sqrt(out_D[s]);
+    }
+}
+
+
 struct StarDiscrepancyBB {
     const double* points;
     int npts;
@@ -1872,7 +2022,7 @@ OwenTree1D make_random_owen_tree_1d(int base,
     return tree;
 }
 
-OwenTreeND make_random_owen_tree_nd(int dim,
+OwenTreeND* make_random_owen_tree_nd(int dim,
     int base,
     int depth,
     uint64_t seed) {
@@ -1882,10 +2032,10 @@ OwenTreeND make_random_owen_tree_nd(int dim,
 
     FastRNG rng(seed);
 
-    OwenTreeND tree(dim, base, depth);
+    OwenTreeND* tree = new OwenTreeND(dim, base, depth);
 
     for (int d = 0; d < dim; ++d) {
-        tree.trees[d] = make_random_owen_tree_1d(base, depth, rng);
+        tree->trees[d] = make_random_owen_tree_1d(base, depth, rng);
     }
 
     return tree;
