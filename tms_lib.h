@@ -27,8 +27,7 @@ struct DiscrepancyPlotOptions;
 struct ProjectionHighlight;
 
 double generalized_l2_discrepancy(const double* points, int npts, int dim, int block_size = 128, bool use_gpu = true);
-void generalized_l2_discrepancy_curve(const double* points, int max_npts, int dim, const long long* sample_counts, int n_samples, double* out_D, int stride_dim = 0);
-
+void generalized_l2_discrepancy_curve(const double* points, long long max_npts, int dim, const long long* sample_counts, long long n_samples, double* out_D, int stride_dim = 0, int block_size = 128, int internal_num_threads = 1);
 #ifdef TMS_USE_CUDA
 #ifdef __cplusplus
 extern "C" {
