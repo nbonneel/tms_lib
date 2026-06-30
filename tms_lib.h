@@ -64,10 +64,6 @@ bool draw_2d_projections_svg(double* points, int dim, long long n_points, const 
     double point_radius = 0.55, const char* point_color = "#111111", double point_opacity = 0.25, const char* default_border_color = "#A8B0FF",
     double default_border_width = 1.2, int label_font_size = 11);
 
-enum PlotYAxisScale {
-    PLOT_Y_LOG10,
-    PLOT_Y_LINEAR
-};
 
 template<int p, int r>
 struct GFCardinality {
@@ -2998,22 +2994,65 @@ struct ProjectionHighlight {
     }
 };
 
+
+
+
+enum PlotYAxisScale {
+    PLOT_Y_LOG10,
+    PLOT_Y_LINEAR
+};
+
+enum PlotLegendPosition {
+    PLOT_LEGEND_TOP_RIGHT,
+    PLOT_LEGEND_TOP_LEFT,
+    PLOT_LEGEND_BOTTOM_RIGHT,
+    PLOT_LEGEND_BOTTOM_LEFT
+};
+
+enum PlotTickNumberFormat {
+    PLOT_TICK_INTEGER,
+    PLOT_TICK_SCIENTIFIC,
+    PLOT_TICK_COMPACT,
+    PLOT_TICK_LOG_VALUE
+};
+
+enum PlotErrorStyle {
+    PLOT_ERROR_NONE,
+    PLOT_ERROR_BARS,
+    PLOT_ERROR_FILL,
+    PLOT_ERROR_BARS_AND_FILL
+};
+
+enum PlotOutputFormat {
+    PLOT_OUTPUT_SVG,
+    PLOT_OUTPUT_BMP
+};
+
 struct DiscrepancyCurve {
     std::vector<long long> n_points;
     std::vector<double> values;
 
-    std::string label;          // Optional individual label
-    std::string legend_group;   // Curves with the same non-empty group share one legend entry
+    std::string label;
+    std::string legend_group;
 
-    std::string color;          // CSS color, empty = automatic
-    double stroke_width;        // <= 0 means use global default
-    double opacity;             // Line opacity
+    std::string color;
+    double stroke_width;
+    double opacity;
     bool dashed;
-    std::string dash_array;     // Example: "7 5"
+    std::string dash_array;
 
     bool show_points;
+    std::vector<unsigned char> show_point_mask;
     double point_radius;
     double point_opacity;
+
+    std::vector<double> error_minus;
+    std::vector<double> error_plus;
+    std::vector<unsigned char> error_mask;
+    PlotErrorStyle error_style;
+    double error_bar_width_pixels;
+    double error_bar_cap_width_pixels;
+    double error_fill_opacity;
 
     bool show_in_legend;
 
@@ -3025,17 +3064,21 @@ struct DiscrepancyCurve {
         show_points(true),
         point_radius(3.5),
         point_opacity(0.95),
+        error_style(PLOT_ERROR_NONE),
+        error_bar_width_pixels(1.2),
+        error_bar_cap_width_pixels(8.0),
+        error_fill_opacity(0.18),
         show_in_legend(true) {
     }
 };
 
 struct ReferenceCurveSpec {
-    std::string label;          // Example: "IID ~ N^{-1/2}"
-    double exponent;            // y ~ N^{-exponent}
-    double scale;               // If <= 0, automatic normalization is used
+    std::string label;
+    double exponent;
+    double scale;
 
-    std::string color;          // CSS color, empty = automatic
-    double stroke_width;        // <= 0 means use global default
+    std::string color;
+    double stroke_width;
     double opacity;
     bool dashed;
     std::string dash_array;
@@ -3053,25 +3096,61 @@ struct ReferenceCurveSpec {
     }
 };
 
+struct PlotPowerGuideSpec {
+    int base;
+    int min_exponent;
+    int max_exponent;
+
+    std::string label;
+    std::string color;
+    double stroke_width;
+    double opacity;
+    bool dashed;
+    std::string dash_array;
+    bool show_in_legend;
+
+    PlotPowerGuideSpec()
+        : base(2),
+        min_exponent(0),
+        max_exponent(-1),
+        color("#BBBBBB"),
+        stroke_width(1.0),
+        opacity(0.55),
+        dashed(true),
+        dash_array("4 5"),
+        show_in_legend(false) {
+    }
+};
+
 struct DiscrepancyPlotOptions {
     int width;
     int height;
+    PlotOutputFormat output_format;
 
     std::string title;
     std::string x_label;
     std::string y_label;
 
-    int base;                   // x-axis internally uses log_base(N)
-    double x_tick_octave_step;  // Example: 1.0 or 0.5
+    int base;
+    double x_tick_octave_step;
     bool x_tick_label_as_counts;
     bool x_tick_label_only_integer_octaves;
+    PlotTickNumberFormat x_tick_format;
+    int x_tick_font_size;
+    double x_tick_rotation_degrees;
 
     PlotYAxisScale y_scale;
-    int y_log10_tick_step;      // Used if y_scale == PLOT_Y_LOG10
-    double y_linear_tick_step;  // Used if y_scale == PLOT_Y_LINEAR
+    int y_log10_tick_step;
+    double y_linear_tick_step;
+    PlotTickNumberFormat y_tick_format;
+    int y_tick_font_size;
 
     bool draw_grid;
+    bool draw_grid_vertical;
+    bool draw_grid_horizontal;
+
     bool draw_legend;
+    PlotLegendPosition legend_position;
 
     double default_curve_width;
     double default_ref_width;
@@ -3083,7 +3162,6 @@ struct DiscrepancyPlotOptions {
 
     int title_font_size;
     int axis_font_size;
-    int tick_font_size;
     int legend_font_size;
 
     std::vector<std::string> default_palette;
@@ -3091,6 +3169,7 @@ struct DiscrepancyPlotOptions {
     DiscrepancyPlotOptions()
         : width(920),
         height(580),
+        output_format(PLOT_OUTPUT_SVG),
         title("Discrepancy plot"),
         x_label("Number of points N"),
         y_label("Discrepancy"),
@@ -3098,11 +3177,19 @@ struct DiscrepancyPlotOptions {
         x_tick_octave_step(1.0),
         x_tick_label_as_counts(true),
         x_tick_label_only_integer_octaves(true),
+        x_tick_format(PLOT_TICK_COMPACT),
+        x_tick_font_size(12),
+        x_tick_rotation_degrees(0.0),
         y_scale(PLOT_Y_LOG10),
         y_log10_tick_step(1),
         y_linear_tick_step(0.1),
+        y_tick_format(PLOT_TICK_SCIENTIFIC),
+        y_tick_font_size(12),
         draw_grid(true),
+        draw_grid_vertical(true),
+        draw_grid_horizontal(true),
         draw_legend(true),
+        legend_position(PLOT_LEGEND_TOP_RIGHT),
         default_curve_width(2.2),
         default_ref_width(2.0),
         left_margin(90.0),
@@ -3111,7 +3198,6 @@ struct DiscrepancyPlotOptions {
         bottom_margin(85.0),
         title_font_size(18),
         axis_font_size(14),
-        tick_font_size(12),
         legend_font_size(12) {
         default_palette.push_back("#4E79A7");
         default_palette.push_back("#E15759");
@@ -3125,6 +3211,22 @@ struct DiscrepancyPlotOptions {
         default_palette.push_back("#BAB0AC");
     }
 };
+
+ReferenceCurveSpec make_reference_n_minus_half();
+ReferenceCurveSpec make_reference_n_minus_one();
+
+bool plot_discrepancy_curves(
+    const std::vector<DiscrepancyCurve>& curves,
+    const std::vector<ReferenceCurveSpec>& refs,
+    const std::vector<PlotPowerGuideSpec>& power_guides,
+    const DiscrepancyPlotOptions& opt,
+    const char* filename);
+
+bool plot_discrepancy_curves_svg(
+    const std::vector<DiscrepancyCurve>& curves,
+    const std::vector<ReferenceCurveSpec>& refs,
+    const DiscrepancyPlotOptions& opt,
+    const char* filename);
 
 
 
