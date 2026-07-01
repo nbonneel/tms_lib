@@ -61,7 +61,7 @@ void padd_least_significant_digits(double* pts, long long n_pts, int dim, int ba
 
 bool draw_2d_projections_svg(double* points, int dim, long long n_points, const char* filename, const ProjectionHighlight* highlights = 0,
     int n_highlights = 0, int cell_size = 90, int cell_inner_margin = 4, int outer_margin = 8, int label_band = 22,
-    double point_radius = 0.55, const char* point_color = "#111111", double point_opacity = 0.25, const char* default_border_color = "#A8B0FF",
+    double point_radius = 0.55, const char* point_color = "#000000", double point_opacity = 1.0, const char* default_border_color = "#A8B0FF",
     double default_border_width = 1.2, int label_font_size = 11);
 
 

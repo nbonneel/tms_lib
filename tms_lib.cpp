@@ -2278,6 +2278,7 @@ bool draw_2d_projections_svg(
     assert(dim >= 2);
     assert(filename != 0);
 
+    if (point_radius < 0) point_radius = sqrt(std::abs(point_radius) * cell_size * cell_size / (3.1416 * n_points));
     const int ncols = dim - 1;
     const int nrows = dim - 1;
 
@@ -2324,18 +2325,47 @@ bool draw_2d_projections_svg(
             const ProjectionHighlight* hl =
                 find_projection_highlight(d0, d1, highlights, n_highlights);
 
-            const char* border_color =
-                hl ? hl->color : default_border_color;
+            if (!hl) {
+                svg_rect(f,
+                    x0, y0,
+                    (double)cell_size, (double)cell_size,
+                    "#ffffff",
+                    default_border_color,
+                    default_border_width);
+            }
+        }
+    }
 
-            const double border_width =
-                hl ? hl->stroke_width : default_border_width;
+    // first normal squares and *then* highlights
+    for (int d1 = 1; d1 < dim; ++d1) {
+        for (int d0 = 0; d0 < d1; ++d0) {
 
-            svg_rect(f,
-                x0, y0,
-                (double)cell_size, (double)cell_size,
-                "#ffffff",
-                border_color,
-                border_width);
+            const double x0 = outer_margin + label_band + d0 * cell_size;
+            const double y0 = outer_margin + (d1 - 1) * cell_size;
+
+            const ProjectionHighlight* hl =
+                find_projection_highlight(d0, d1, highlights, n_highlights);
+
+            if (hl) {
+                svg_rect(f,
+                    x0, y0,
+                    (double)cell_size, (double)cell_size,
+                    "#ffffff",
+                    hl->color,
+                    hl->stroke_width);
+            }
+        }
+    }
+
+    for (int d1 = 1; d1 < dim; ++d1) {
+        for (int d0 = 0; d0 < d1; ++d0) {
+
+            const double x0 = outer_margin + label_band + d0 * cell_size;
+            const double y0 = outer_margin + (d1 - 1) * cell_size;
+
+            const ProjectionHighlight* hl =
+                find_projection_highlight(d0, d1, highlights, n_highlights);
+
 
             const double px0 = x0 + cell_inner_margin;
             const double py0 = y0 + cell_inner_margin;
