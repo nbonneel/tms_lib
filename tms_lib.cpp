@@ -2667,6 +2667,35 @@ void svg_circle(
         stroke_opacity);
 }
 
+double estimate_svg_text_width(const std::string& s, int font_size) {
+    // Rough but robust enough for Arial/Helvetica-like fonts.
+    // This intentionally overestimates a bit to avoid legend text overflow.
+    double w = 0.0;
+
+    for (size_t i = 0; i < s.size(); ++i) {
+        const unsigned char c = static_cast<unsigned char>(s[i]);
+
+        if (c == ' ') {
+            w += 0.32 * font_size;
+        }
+        else if (c == 'i' || c == 'l' || c == 'I' || c == '!' || c == '.' || c == ',') {
+            w += 0.30 * font_size;
+        }
+        else if (c == 'm' || c == 'w' || c == 'M' || c == 'W') {
+            w += 0.90 * font_size;
+        }
+        else if (c >= 128) {
+            // UTF-8 bytes: overestimate slightly rather than trying to decode.
+            w += 0.35 * font_size;
+        }
+        else {
+            w += 0.58 * font_size;
+        }
+    }
+
+    return w;
+}
+
 class Bitmap {
 public:
     Bitmap(int w, int h)
@@ -3565,7 +3594,22 @@ private:
         }
 
         const double row_h = 19.0;
-        const double legend_w = 300.0;
+        //const double legend_w = 300.0;
+
+        double max_label_w = 0.0;
+
+        for (int i = 0; i < (int)entries.size(); ++i) {
+            max_label_w = std::max(
+                max_label_w,
+                estimate_svg_text_width(entries[i].label, opt.legend_font_size)
+            );
+        }
+
+        // 58 px = left padding + line sample + gap before text.
+        // 18 px = right padding.
+        // Keep a minimum width for short legends.
+        const double legend_w = std::max(180.0, 58.0 + max_label_w + 18.0);
+
         const double legend_h = 16.0 + row_h * entries.size();
 
         double lx = plot_rect.x1 - legend_w - 12.0;
