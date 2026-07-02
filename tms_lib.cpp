@@ -2437,7 +2437,7 @@ struct LegendEntry {
     std::string color;
     double width;
     double opacity;
-    bool dashed;
+    bool dashed, show_point;
     std::string dash_array;
 };
 
@@ -3602,7 +3602,8 @@ private:
                 : std::string();
 
             svg_line(f, lx + 12.0, yy, lx + 48.0, yy, e.color, e.width, e.opacity, extra);
-            svg_circle(f, lx + 30.0, yy, 3.0, e.color, "#2f2f2f", std::min(1.0, e.opacity + 0.1), 0.75);
+            if (e.show_point)
+                svg_circle(f, lx + 30.0, yy, 3.0, e.color, "#2f2f2f", std::min(1.0, e.opacity + 0.1), 0.75);
 
             svg_text(
                 f,
@@ -3636,6 +3637,7 @@ private:
             LegendEntry e;
             e.label = !rc.legend_label.empty() ? rc.legend_label : rc.group_key;
             e.color = rc.color;
+            e.show_point = c.show_points;
             e.width = rc.stroke_width;
             e.opacity = rc.opacity;
             e.dashed = c.dashed;
