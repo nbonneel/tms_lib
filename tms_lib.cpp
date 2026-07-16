@@ -604,7 +604,7 @@ void generalized_l2_discrepancy_curve_squared_exact_runtime_aos(
         incB[i] = b_ii;
     }
 
-    const int nb =
+    const long long nb =
         (max_npts + block_size - 1) / block_size;
 
     // Compute:
@@ -648,13 +648,13 @@ void generalized_l2_discrepancy_curve_squared_exact_runtime_aos(
             }
             else {
                 // Diagonal block: keep only k < i.
-                for (int i = i0; i < i1; ++i) {
+                for (long long i = i0; i < i1; ++i) {
                     const double* yi =
                         Y.data() + std::size_t(i) * std::size_t(dim);
 
                     double sum_i = 0.0;
 
-                    for (int k = i0; k < i; ++k) {
+                    for (long long k = i0; k < i; ++k) {
                         const double* yk =
                             Y.data() + std::size_t(k) * std::size_t(dim);
 
@@ -666,7 +666,7 @@ void generalized_l2_discrepancy_curve_squared_exact_runtime_aos(
             }
         }
 
-        for (int i = i0; i < i1; ++i) {
+        for (long long i = i0; i < i1; ++i) {
             incB[i] += 2.0 * local_pair_sum[std::size_t(i - i0)];
         }
     }
