@@ -53,7 +53,7 @@ void print_point_range(const double* points, int npts, int dim);
 int t_value_pointset(const double* points, int npts, int dim, int base, bool dbg = false);
 
 OwenTreeND* make_random_owen_tree_nd(int dim, int base, int depth, uint64_t seed = 0x123456789ABCDEF0ULL);
-void apply_owen_permutation_real(const double* points_in, double* points_out, int npts, int dim, int m,  const OwenTreeND& tree);
+void apply_owen_permutation_real(const double* points_in, double* points_out, long long npts, int dim, int m,  const OwenTreeND& tree);
 extern uint64_t ipow_u64_checked(int base, int exp);
 bool plot_discrepancy_curves_svg(const std::vector<DiscrepancyCurve>& curves, const std::vector<ReferenceCurveSpec>& refs, const DiscrepancyPlotOptions& opt, const char* filename);
 void padd_least_significant_digits(double* pts, long long n_pts, int dim, int base, int m, long long seed);
