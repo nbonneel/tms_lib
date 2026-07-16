@@ -2160,7 +2160,7 @@ double apply_owen_1d_real(double x,
 
 void apply_owen_permutation_real(const double* points_in,
     double* points_out,
-    int npts,
+    long long npts,
     int dim,
     int stride_in,
     int stride_out,
@@ -2175,7 +2175,7 @@ void apply_owen_permutation_real(const double* points_in,
     assert(tree.dim == dim);
     //assert(check_owen_tree_nd(tree));
 
-    for (int i = 0; i < npts; ++i) {
+    for (long long i = 0; i < npts; ++i) {
         for (int d = 0; d < dim; ++d) {
             const double x = points_in[i * stride_in + d];
 
@@ -2189,7 +2189,7 @@ void apply_owen_permutation_real(const double* points_in,
 
 void apply_owen_permutation_real(const double* points_in,
     double* points_out,
-    int npts,
+    long long npts,
     int dim,
     int m,
     const OwenTreeND& tree) {
@@ -2724,24 +2724,124 @@ public:
         pixels[idx + 2] = (unsigned char)(pixels[idx + 2] * (1.0 - a) + c.b * a);
     }
 
-    void draw_line(double x0, double y0, double x1, double y1, RGB c, double a, double width_px) {
-        const double dx = x1 - x0;
-        const double dy = y1 - y0;
-        const double len = std::sqrt(dx * dx + dy * dy);
 
-        if (len <= 0.0) {
-            draw_disc((int)std::round(x0), (int)std::round(y0), 0.5 * width_px, c, a);
+    static double distance_to_segment(
+        double px,
+        double py,
+        double x0,
+        double y0,
+        double x1,
+        double y1)
+    {
+        const double vx = x1 - x0;
+        const double vy = y1 - y0;
+        const double wx = px - x0;
+        const double wy = py - y0;
+
+        const double vv = vx * vx + vy * vy;
+
+        if (vv <= 1e-20) {
+            const double dx = px - x0;
+            const double dy = py - y0;
+            return std::sqrt(dx * dx + dy * dy);
+        }
+
+        double t = (wx * vx + wy * vy) / vv;
+
+        if (t < 0.0) {
+            t = 0.0;
+        }
+        else if (t > 1.0) {
+            t = 1.0;
+        }
+
+        const double qx = x0 + t * vx;
+        const double qy = y0 + t * vy;
+        const double dx = px - qx;
+        const double dy = py - qy;
+
+        return std::sqrt(dx * dx + dy * dy);
+    }
+
+    void draw_line(double x0, double y0, double x1, double y1, RGB c, double a, double width_px) {
+        if (a <= 0.0 || width_px <= 0.0) {
             return;
         }
 
-        const int steps = std::max(1, (int)std::ceil(len));
-        const double radius = std::max(0.5, 0.5 * width_px);
+        const double dx = x1 - x0;
+        const double dy = y1 - y0;
+        const double len2 = dx * dx + dy * dy;
 
-        for (int i = 0; i <= steps; ++i) {
-            const double t = double(i) / double(steps);
-            const double x = x0 + t * dx;
-            const double y = y0 + t * dy;
-            draw_disc((int)std::round(x), (int)std::round(y), radius, c, a);
+        // Degenerate case: draw a small antialiased disc-like footprint.
+        if (len2 <= 1e-20) {
+            const double radius = 0.5 * width_px;
+            const double aa = 1.0;
+
+            const int xmin = std::max(0, (int)std::floor(x0 - radius - aa));
+            const int xmax = std::min(width - 1, (int)std::ceil(x0 + radius + aa));
+            const int ymin = std::max(0, (int)std::floor(y0 - radius - aa));
+            const int ymax = std::min(height - 1, (int)std::ceil(y0 + radius + aa));
+
+            for (int y = ymin; y <= ymax; ++y) {
+                for (int x = xmin; x <= xmax; ++x) {
+                    const double px = x + 0.5;
+                    const double py = y + 0.5;
+                    const double ddx = px - x0;
+                    const double ddy = py - y0;
+                    const double dist = std::sqrt(ddx * ddx + ddy * ddy);
+
+                    double coverage = radius + aa - dist;
+
+                    if (coverage <= 0.0) {
+                        continue;
+                    }
+
+                    if (coverage > 1.0) {
+                        coverage = 1.0;
+                    }
+
+                    blend_pixel(x, y, c, a * coverage);
+                }
+            }
+
+            return;
+        }
+
+        const double half_w = 0.5 * width_px;
+        const double aa = 1.0;
+
+        // Conservative bounding box for the thick segment.
+        const double xmin_f = std::min(x0, x1) - half_w - aa;
+        const double xmax_f = std::max(x0, x1) + half_w + aa;
+        const double ymin_f = std::min(y0, y1) - half_w - aa;
+        const double ymax_f = std::max(y0, y1) + half_w + aa;
+
+        const int xmin = std::max(0, (int)std::floor(xmin_f));
+        const int xmax = std::min(width - 1, (int)std::ceil(xmax_f));
+        const int ymin = std::max(0, (int)std::floor(ymin_f));
+        const int ymax = std::min(height - 1, (int)std::ceil(ymax_f));
+
+        for (int y = ymin; y <= ymax; ++y) {
+            for (int x = xmin; x <= xmax; ++x) {
+                const double px = x + 0.5;
+                const double py = y + 0.5;
+
+                const double dist = distance_to_segment(px, py, x0, y0, x1, y1);
+
+                // coverage = 1 inside the core stroke,
+                // then linearly fades over a 1-pixel AA band.
+                double coverage = half_w + aa - dist;
+
+                if (coverage <= 0.0) {
+                    continue;
+                }
+
+                if (coverage > 1.0) {
+                    coverage = 1.0;
+                }
+
+                blend_pixel(x, y, c, a * coverage);
+            }
         }
     }
 
@@ -3608,7 +3708,7 @@ private:
         // 58 px = left padding + line sample + gap before text.
         // 18 px = right padding.
         // Keep a minimum width for short legends.
-        const double legend_w = std::max(180.0, 58.0 + max_label_w + 18.0);
+        const double legend_w = std::max(180.0, 18.0 + max_label_w + 18.0);
 
         const double legend_h = 16.0 + row_h * entries.size();
 
